@@ -4,7 +4,7 @@ from typing import Callable, List, Optional, Type, Union
 import torch.nn as nn
 from torch import Tensor, flatten
 
-from kan_convs import KALNConv2DLayer, KANConv2DLayer, KACNConv2DLayer, FastKANConv2DLayer, KAGNConv2DLayer, \
+from convKAN.kan_convs import KALNConv2DLayer, KANConv2DLayer, KACNConv2DLayer, FastKANConv2DLayer, KAGNConv2DLayer, \
     BottleNeckKAGNConv2DLayer
 from .model_utils import kan_conv1x1, kagn_conv1x1, kacn_conv1x1, kaln_conv1x1, fast_kan_conv1x1, \
     bottleneck_kagn_conv1x1
