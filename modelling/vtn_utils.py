@@ -11,7 +11,7 @@ from torch.nn import functional as F
 from torchvision.models import resnet18, resnet34,resnet50
 import torchvision.models as models
 import torchvision
-from convKAN.models import vggkagn_bn
+from convKAN.models import VGGKAGN_BN,vggkagn
 
 class FeatureExtractor(nn.Module):
     """Feature extractor for RGB clips, powered by a 2D CNN backbone."""
@@ -26,27 +26,79 @@ class FeatureExtractor(nn.Module):
             model = resnet34(weights=models.ResNet34_Weights.IMAGENET1K_V1)
         elif cnn == 'rn50':
             model = resnet50(weights=models.ResNet50_Weights.IMAGENET1K_V2)
+        elif cnn == 'vggkanbn11v4opt':
+            model = VGGKAGN_BN.from_pretrained('brivangl/vgg_kagn_bn11_v4_opt',
+                                   groups=1,
+                                   degree=3,
+                                   dropout=0.05,
+                                   l1_decay=0,
+                                   width_scale=3,
+                                   affine=True,
+                                   norm_layer=nn.BatchNorm2d,
+                                   expected_feature_shape=(1, 1),
+                                   vgg_type='VGG11v4')
         elif cnn == 'vggkanbn11v4':
-            model = vggkagn_bn(3,
-                               1000,
-                               groups=1,
-                               degree=5,
-                               dropout=0.05,
-                               l1_decay=0,
-                               width_scale=2,
-                               affine=True,
-                               norm_layer=nn.BatchNorm2d,
-                               expected_feature_shape=(1, 1),
-                               vgg_type='VGG11v4')
-            model.from_pretrained('brivangl/vgg_kagn_bn11_v4')
+            model = VGGKAGN_BN.from_pretrained('brivangl/vgg_kagn_bn11_v4',
+                                    groups=1,
+                                    degree=5,
+                                    dropout=0.05,
+                                    l1_decay=0,
+                                    width_scale=2,
+                                    affine=True,
+                                    norm_layer=nn.BatchNorm2d,
+                                    expected_feature_shape=(1, 1),
+                                    vgg_type='VGG11v4')
+        elif cnn == 'vggkanbn11v4sa':
+            model = VGGKAGN_BN.from_pretrained('brivangl/vgg_kagn_bn11sa_v4',
+                                    groups=1,
+                                    degree=5,
+                                    dropout= 0.05,
+                                    l1_decay=0,
+                                    width_scale=2,
+                                    affine=True,
+                                    norm_layer=nn.BatchNorm2d,
+                                    expected_feature_shape=(1, 1),
+                                    vgg_type='VGG11v4',
+                                    last_attention=True,
+                                    sa_inner_projection=None)
+        elif cnn == 'vggkan11v4':
+            model = vggkagn(3,
+                            1000,
+                            groups=1,
+                            degree=5,
+                            dropout=0.05,
+                            l1_decay=0,
+                            dropout_linear=0.25,
+                            width_scale=2,
+                            affine=True,
+                            expected_feature_shape=(1, 1),
+                            vgg_type='VGG11v4',
+                            head_type='')
+            model.from_pretrained('brivangl/vgg_kagn11_v4')
+        elif cnn == 'vggkan11v2':
+            model = vggkagn(3,
+                            1000,
+                            groups=1,
+                            degree=5,
+                            dropout=0.15,
+                            l1_decay=0,
+                            dropout_linear=0.25,
+                            width_scale=2,
+                            vgg_type='VGG11v2',
+                            expected_feature_shape=(1, 1),
+                            affine=True,
+                            head_type='')
+            model.from_pretrained('brivangl/vgg_kagn11_v2')
         else:
             raise ValueError(f'Unknown value for `cnn`: {cnn}')
 
-        self.resnet = nn.Sequential(*list(model.children())[:-2])
-
+        if cnn == 'rn18' or cnn == 'rn34' or cnn =='rn50':
+            self.network = nn.Sequential(*list(model.children())[:-2])
+        elif cnn == 'vggkan11v4' or cnn =='vggkanbn11v4' or cnn == 'vggkanbn11v4sa' or cnn == 'vggkanbn11v4opt' or cnn == 'vggkan11v2'                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              :
+            self.network = nn.Sequential(*model.features)
         # Freeze layers if requested.
         for layer_index in range(freeze_layers):
-            for param in self.resnet[layer_index].parameters(True):
+            for param in self.network[layer_index].parameters(True):
                 param.requires_grad = False
 
         # ResNet-18 and ResNet-34 output 512 features after pooling.
@@ -67,7 +119,7 @@ class FeatureExtractor(nn.Module):
         # Process all sequential data in parallel as a large mini-batch.
         rgb_clip = rgb_clip.view(b * t, c, h, w)
 
-        features = self.resnet(rgb_clip)
+        features = self.network(rgb_clip)
 
         # Transform to the desired embedding size.
         features = self.pointwise_conv(features)

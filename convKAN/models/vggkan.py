@@ -7,7 +7,7 @@ import torch
 import torch.nn as nn
 from huggingface_hub import PyTorchModelHubMixin
 
-from kans import mlp_kan, mlp_fastkan, mlp_kacn, mlp_kagn, mlp_kaln, mlp_wav_kan
+from convKAN.kans import mlp_kan, mlp_fastkan, mlp_kacn, mlp_kagn, mlp_kaln, mlp_wav_kan
 from .extra_layers import MatryoshkaHead
 from .model_utils import kan_conv3x3, kaln_conv3x3, fast_kan_conv3x3, kacn_conv3x3, kagn_conv3x3, wav_kan_conv3x3
 from .model_utils import moe_bottleneck_kagn_conv3x3
@@ -309,7 +309,7 @@ class VGGKAGN_BN(VGG, PyTorchModelHubMixin):
                  l1_decay: float = 0.0, dropout_linear: float = 0.25, vgg_type: str = 'VGG11',
                  head_type: str = 'Linear',
                  expected_feature_shape: Tuple = (7, 7), width_scale: int = 1, affine: bool = False,
-                 norm_layer: nn.Module = nn.InstanceNorm2d,
+                 norm_layer: nn.Module = nn.InstanceNorm2d(num_features=3,track_running_stats=True),
                  last_attention: bool = False, sa_inner_projection: int = None):
         conv_fun = partial(bottleneck_kagn_conv3x3, degree=degree,
                            dropout=dropout, l1_decay=l1_decay, groups=groups, affine=affine, norm_layer=norm_layer)
@@ -334,7 +334,7 @@ def vggkagn_bn(input_channels, num_classes, groups: int = 1, degree: int = 3, dr
                l1_decay: float = 0.0,
                dropout_linear: float = 0.25, vgg_type: str = 'VGG11', head_type: str = 'Linear',
                expected_feature_shape: Tuple = (7, 7), width_scale: int = 1, affine: bool = False,
-               norm_layer: nn.Module = nn.InstanceNorm2d,
+               norm_layer: nn.Module = nn.InstanceNorm2d(num_features=3,track_running_stats=True),
                last_attention: bool = False, sa_inner_projection: int = None):
     return VGGKAGN_BN(input_channels, num_classes, groups=groups, degree=degree, dropout=dropout, l1_decay=l1_decay,
                       dropout_linear=dropout_linear, vgg_type=vgg_type, head_type=head_type,

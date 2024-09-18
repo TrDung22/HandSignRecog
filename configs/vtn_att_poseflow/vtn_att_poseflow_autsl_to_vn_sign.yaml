@@ -1,10 +1,10 @@
 task: ISLR
 data:
   model_name: vtn_att_poseflow
-  # base_url: /home/ibmelab/Documents/GG/VSLRecognition/AUTSL
-  base_url: /home/ibmelab/Documents/GG/VSLRecognition/vsl
-  dataset_name: VN_SIGN
-  # dataset_name: AUTSL
+  base_url: /home/ibmelab/Documents/GG/VSLRecognition/AUTSL
+  # base_url: /home/ibmelab/Documents/GG/VSLRecognition/vsl
+  # dataset_name: VN_SIGN
+  dataset_name: AUTSL
   temporal_stride: 2
   num_output_frames: 16
   crop_two_hand: true
@@ -20,8 +20,8 @@ data:
     NORM_STD_IMGNET: [0.229, 0.224, 0.225]
   SHOULDER_DIST_EPSILON: 1.2
   WRIST_DELTA: 0.15
-  # label_folder: label
-  label_folder: label/labelCenterWithOrd1/labelDefault
+  label_folder: label
+  # label_folder: label/labelCenterWithOrd1/labelDefault
   data_type: labels
 training:
   coefficient:
@@ -32,14 +32,14 @@ training:
   device: cuda:1
   overwrite: true
   log_freq: 1
-  # experiment_name: "vtn_att_poseflow autsl for one view"
-  experiment_name: "vtn_att_poseflow autsl to vsl for one view default"
+  experiment_name: "vtn_att_poseflow vggkan11v4 autsl for one view"
+  # experiment_name: "vtn_att_poseflow autsl to vsl for one view default"
   model_dir: results/vtn_att_poseflow/vsl
   random_seed: 42
   shuffle: True
   num_workers: 8
   prefetch_factor: 2
-  batch_size: 3 #to-debug!
+  batch_size: 1 #to-debug!
   total_epoch: 300 #to-debug!
   learning_rate: 0.0001
   save_checkpoints: true
@@ -53,8 +53,9 @@ training:
   lr_scheduler: StepLR
   top_k: 5
   print_stats: true
-  pretrained: true
-  pretrained_model: checkpoints/VTN_HCPF.ckpt
+  pretrained: false
+  pretrained_model: None
+  # pretrained_model: checkpoints/VTN_HCPF.ckpt
   lr_step_size: 10
   gamma: 0.8
   num_accumulation_steps: 4
@@ -72,10 +73,12 @@ training:
 inference:
   batch_size: 8
 model:
-  num_classes: 199
+  num_classes: 226
   num_heads: 8
   num_layers: 4
   embed_size: 512
-  cnn: rn34
-  freeze_layers: 5 # free layers in cnn
+  cnn: vggkan11v4
+  # freeze_layers: 5 # free layers in cnn
+  freeze_layers: 12 # free layers in vgg-like kan 11v4 next test
+  # freeze_layers: 9 # free layers in vgg-like kan 11v4
   dropout: 0.1

@@ -4,7 +4,6 @@ data/VN_SIGN/pose*
 data/VN_SIGN/poseflow
 data/VN_SIGN/wholebody*
 *pycache*
-*init*
 checkpoints
 out-img
 *.mp4
