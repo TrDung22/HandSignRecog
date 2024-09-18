@@ -13,4 +13,5 @@ pretrained_models
 *.pt
 receivedVideo
 wandb
-
+tools/madeLabel.py
+tools/rmEmptyFromCSV.py
