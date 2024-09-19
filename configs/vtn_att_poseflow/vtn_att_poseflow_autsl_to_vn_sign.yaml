@@ -8,6 +8,7 @@ data:
   temporal_stride: 2
   num_output_frames: 16
   crop_two_hand: true
+  crop_two_hand_with_keypoints: False
   transform_cfg:
     index_setting:
       - segment #train_p
@@ -32,14 +33,14 @@ training:
   device: cuda:1
   overwrite: true
   log_freq: 1
-  experiment_name: "vtn_att_poseflow vggkan11v4 autsl for one view"
+  experiment_name: "vtn_att_poseflow vggkanbn11v4sa autsl for one view"
   # experiment_name: "vtn_att_poseflow autsl to vsl for one view default"
   model_dir: results/vtn_att_poseflow/vsl
   random_seed: 42
   shuffle: True
   num_workers: 8
   prefetch_factor: 2
-  batch_size: 1 #to-debug!
+  batch_size: 3 #to-debug!
   total_epoch: 300 #to-debug!
   learning_rate: 0.0001
   save_checkpoints: true
@@ -77,7 +78,7 @@ model:
   num_heads: 8
   num_layers: 4
   embed_size: 512
-  cnn: vggkan11v4
+  cnn: vggkanbn11v4sa
   # freeze_layers: 5 # free layers in cnn
   freeze_layers: 12 # free layers in vgg-like kan 11v4 next test
   # freeze_layers: 9 # free layers in vgg-like kan 11v4
