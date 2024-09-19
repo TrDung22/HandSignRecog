@@ -1,6 +1,7 @@
 import numpy as np
 import torch
 import cv2
+from PIL import Image
 
 def crop_hand(frame,keypoints,WRIST_DELTA,SHOULDER_DIST_EPSILON,
               transform,clip_len,missing_wrists_left,missing_wrists_right):
@@ -67,6 +68,101 @@ def crop_hand(frame,keypoints,WRIST_DELTA,SHOULDER_DIST_EPSILON,
    
 
     return crops,missing_wrists_left,missing_wrists_right
+
+
+
+def crop_hand_with_keypoints(frame, crop_keypoints, hand_keypoints, WRIST_DELTA, SHOULDER_DIST_EPSILON,
+                             transform, clip_len, missing_wrists_left, missing_wrists_right):
+    left_wrist_index = 9
+    left_elbow_index = 7
+    right_wrist_index = 10
+    right_elbow_index = 8
+
+    # Crop out both wrists and apply transform
+    left_wrist = crop_keypoints[0:2, left_wrist_index]
+    left_elbow = crop_keypoints[0:2, left_elbow_index]
+
+    left_hand_center = left_wrist + WRIST_DELTA * (left_wrist - left_elbow)
+    left_hand_center_x = left_hand_center[0]
+    left_hand_center_y = left_hand_center[1]
+    shoulder_dist = np.linalg.norm(crop_keypoints[0:2, 5] - crop_keypoints[0:2, 6]) * SHOULDER_DIST_EPSILON
+    left_hand_xmin = max(0, int(left_hand_center_x - shoulder_dist // 2))
+    left_hand_xmax = min(frame.shape[1], int(left_hand_center_x + shoulder_dist // 2))
+    left_hand_ymin = max(0, int(left_hand_center_y - shoulder_dist // 2))
+    left_hand_ymax = min(frame.shape[0], int(left_hand_center_y + shoulder_dist // 2))
+
+    if not np.any(left_wrist) or not np.any(
+            left_elbow) or left_hand_ymax - left_hand_ymin <= 0 or left_hand_xmax - left_hand_xmin <= 0:
+        # Wrist or elbow not found -> use entire frame then
+        left_hand_crop = frame.copy()
+        missing_wrists_left.append(clip_len)
+        # Sử dụng toàn bộ keypoints cho khung hình gốc
+        adjusted_left_hand_kps = hand_keypoints[0:20]
+    else:
+        left_hand_crop = frame[left_hand_ymin:left_hand_ymax, left_hand_xmin:left_hand_xmax, :].copy()
+        # Điều chỉnh tọa độ keypoints theo crop
+        adjusted_left_hand_kps = hand_keypoints[0:20].copy()
+        adjusted_left_hand_kps[:, 0] -= left_hand_xmin
+        adjusted_left_hand_kps[:, 1] -= left_hand_ymin
+
+    # Vẽ keypoints lên hình ảnh bàn tay trái
+    adjusted_left_hand_kps = adjusted_left_hand_kps.astype(int)
+    for kp in adjusted_left_hand_kps:
+        x, y = kp
+        if 0 <= x < left_hand_crop.shape[1] and 0 <= y < left_hand_crop.shape[0]:
+            cv2.circle(left_hand_crop, (x, y), radius=2, color=(0, 255, 0), thickness=-1)
+
+    # Chuyển đổi từ BGR sang RGB nếu cần thiết
+    left_hand_crop = cv2.cvtColor(left_hand_crop, cv2.COLOR_BGR2RGB)
+    # Chuyển đổi sang PIL Image nếu transform yêu cầu
+    left_hand_crop = Image.fromarray(left_hand_crop)
+    # Áp dụng transform
+    left_hand_crop = transform(left_hand_crop)
+
+    # Xử lý bàn tay phải tương tự
+    right_wrist = crop_keypoints[0:2, right_wrist_index]
+    right_elbow = crop_keypoints[0:2, right_elbow_index]
+    right_hand_center = right_wrist + WRIST_DELTA * (right_wrist - right_elbow)
+    right_hand_center_x = right_hand_center[0]
+    right_hand_center_y = right_hand_center[1]
+    right_hand_xmin = max(0, int(right_hand_center_x - shoulder_dist // 2))
+    right_hand_xmax = min(frame.shape[1], int(right_hand_center_x + shoulder_dist // 2))
+    right_hand_ymin = max(0, int(right_hand_center_y - shoulder_dist // 2))
+    right_hand_ymax = min(frame.shape[0], int(right_hand_center_y + shoulder_dist // 2))
+
+    if not np.any(right_wrist) or not np.any(
+            right_elbow) or right_hand_ymax - right_hand_ymin <= 0 or right_hand_xmax - right_hand_xmin <= 0:
+        # Wrist or elbow not found -> use entire frame then
+        right_hand_crop = frame.copy()
+        missing_wrists_right.append(clip_len)
+        # Sử dụng toàn bộ keypoints cho khung hình gốc
+        adjusted_right_hand_kps = hand_keypoints[21:41]
+    else:
+        right_hand_crop = frame[right_hand_ymin:right_hand_ymax, right_hand_xmin:right_hand_xmax, :].copy()
+        # Điều chỉnh tọa độ keypoints theo crop
+        adjusted_right_hand_kps = hand_keypoints[21:41].copy()
+        adjusted_right_hand_kps[:, 0] -= right_hand_xmin
+        adjusted_right_hand_kps[:, 1] -= right_hand_ymin
+
+    # Vẽ keypoints lên hình ảnh bàn tay phải
+    adjusted_right_hand_kps = adjusted_right_hand_kps.astype(int)
+    for kp in adjusted_right_hand_kps:
+        x, y = kp
+        if 0 <= x < right_hand_crop.shape[1] and 0 <= y < right_hand_crop.shape[0]:
+            cv2.circle(right_hand_crop, (x, y), radius=2, color=(0, 255, 0), thickness=-1)
+
+    # Chuyển đổi từ BGR sang RGB nếu cần thiết
+    right_hand_crop = cv2.cvtColor(right_hand_crop, cv2.COLOR_BGR2RGB)
+    # Chuyển đổi sang PIL Image nếu transform yêu cầu
+    right_hand_crop = Image.fromarray(right_hand_crop)
+    # Áp dụng transform
+    right_hand_crop = transform(right_hand_crop)
+
+    # Kết hợp hai ảnh crop
+    crops = torch.stack((left_hand_crop, right_hand_crop), dim=0)
+
+    return crops, missing_wrists_left, missing_wrists_right
+
 
 def crop_optical_flow_hand(frame,keypoints,WRIST_DELTA,SHOULDER_DIST_EPSILON,resize,transform):
     left_wrist_index = 9

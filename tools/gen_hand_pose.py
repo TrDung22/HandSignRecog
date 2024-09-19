@@ -10,28 +10,32 @@ import glob
 from collections import defaultdict
 
 """
-# LeftHand : [92,111]
-# RightHand: [113,132] include 10
-# Pose: [0,10] include 10
-
-# After append neck and headtop at first:
-
-# LeftHand : [94,113] include 113
-# RightHand: [115,134] include 134
-# Pose: [0,10] include 10
-# Neck: 17 HeadTop: 18
+# LeftHand : [0,20]
+# RightHand: [21,41]
 """
-def impute_missing_keypoints(poses):
+
+def impute_missing_keypoints(poses, file_name):
     """Thay thế các keypoint bị thiếu bằng giá trị từ các khung hình lân cận."""
+    # Danh sách để lưu trữ thông tin về các keypoint bị thiếu
+    missing_keypoints_info = []
+
     # 1. Thu thập các keypoint bị thiếu
     missing_keypoints = defaultdict(list)  # Khung hình -> Danh sách các keypoint bị thiếu
-    for i in range(poses.shape[0]):
-        for kpi in range(poses.shape[1]):
+    for i in range(poses.shape[0]):  # Duyệt qua từng khung hình
+        for kpi in range(poses.shape[1]):  # Duyệt qua từng keypoint
             if np.count_nonzero(poses[i, kpi]) == 0:  # Keypoint bị thiếu
                 missing_keypoints[i].append(kpi)
-                print(f"Keypoint bị thiếu tại khung hình {i}, keypoint {kpi}")
+                # Không in ra màn hình nữa
+                # Thu thập thông tin vào danh sách
+                missing_keypoints_info.append({
+                    'file_name': file_name,
+                    'missing_frame': i,
+                    'missing_keypoint_index': kpi,
+                    'replacement_frame': None  # Sẽ cập nhật sau
+                })
+
     # 2. Điền vào các keypoint bị thiếu
-    for i in missing_keypoints.keys():
+    for idx, i in enumerate(missing_keypoints.keys()):
         missing = missing_keypoints[i]
         for kpi in missing:
             # Các ứng viên thay thế
@@ -47,9 +51,17 @@ def impute_missing_keypoints(poses):
             # Thay thế
             if replacement > -1:
                 poses[i, kpi] = poses[replacement, kpi]
-    return poses
+                # Cập nhật thông tin replacement_frame trong danh sách
+                for info in missing_keypoints_info:
+                    if info['file_name'] == file_name and info['missing_frame'] == i and info['missing_keypoint_index'] == kpi:
+                        info['replacement_frame'] = replacement
+            else:
+                # Nếu không tìm thấy frame thay thế, có thể để giá trị mặc định hoặc xử lý khác
+                pass
 
-def gen_pose(base_url, file_name, pose_detector):
+    return poses, missing_keypoints_info
+
+def gen_pose(base_url, file_name, pose_detector, csv_writer):
     video_url = os.path.join(base_url, file_name)
     pose_results = pose_detector(video_url)
 
@@ -75,22 +87,26 @@ def gen_pose(base_url, file_name, pose_detector):
         # Áp dụng ngưỡng xác suất
         poses_threshold = np.where(all_probs[:, :, None] > 0.2, all_poses, 0)
 
-        # Áp dụng hàm impute_missing_keypoints
-        poses_imputed = impute_missing_keypoints(poses_threshold)
+        # Áp dụng hàm impute_missing_keypoints và nhận thông tin về keypoint bị thiếu
+        poses_imputed, missing_keypoints_info = impute_missing_keypoints(poses_threshold, file_name)
+
+        # Lưu thông tin keypoint bị thiếu vào CSV
+        if missing_keypoints_info:
+            for info in missing_keypoints_info:
+                csv_writer.writerow(info)
 
         # Lưu kết quả sau khi điền keypoint bị thiếu
         for idx in range(len(poses_imputed)):
             pose = poses_imputed[idx]
             prob = all_probs[idx]
             raw_pose = [[value[0], value[1], 0] for value in pose]
-            pose_threshold_02 = [[value[0], value[1], 0] if prob[i] > 0.2 else [0, 0, 0] for i, value in
-                                 enumerate(pose)]
+            pose_threshold_02 = [[value[0], value[1], 0] if prob[i] > 0.2 else [0, 0, 0] for i, value in enumerate(pose)]
             dict_data = {
                 "raw_pose": raw_pose,
                 "pose_threshold_02": pose_threshold_02,
                 "prob": prob.tolist()
             }
-            dest = os.path.join(kp_folder, video_url.replace(".mp4", "") + '_{:06d}_'.format(idx) + 'keypoints.json')
+            dest = os.path.join(kp_folder, file_name.replace(".mp4", "") + '_{:06d}_'.format(idx) + 'keypoints.json')
 
             with open(dest, 'w') as f:
                 json.dump(dict_data, f)
@@ -99,12 +115,21 @@ def gen_pose(base_url, file_name, pose_detector):
 
 
 if __name__ == "__main__":
+    import csv
+
     full_data = pd.read_csv("test.csv")
     print(full_data.columns)
-    pose_detector = MMPoseInferencer("rtmpose-l_8xb64-270e_coco-wholebody-256x192")
+    pose_detector = MMPoseInferencer("rtmpose-m_8xb64-270e_coco-wholebody-256x192")
 
-    print(full_data.shape)
-    for idx, data in full_data.iterrows():
-        gen_pose("videos", data['file_name'], pose_detector)
-        print("Done", data['file_name'])
+    # Mở file CSV để ghi thông tin về keypoint bị thiếu
+    with open('missing_keypoints_info.csv', mode='w', newline='') as csv_file:
+        fieldnames = ['file_name', 'missing_frame', 'missing_keypoint_index', 'replacement_frame']
+        csv_writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
 
+        # Ghi tiêu đề cột
+        csv_writer.writeheader()
+
+        print(full_data.shape)
+        for idx, data in full_data.iterrows():
+            gen_pose("videos", data['file_name'], pose_detector, csv_writer)
+            print("Done", data['file_name'])

@@ -13,10 +13,7 @@ from dataset.videoLoader import get_selected_indexs,pad_index
 import cv2
 import torchvision
 from utils.video_augmentation import *
-from dataset.utils import crop_hand
-
-
-
+from dataset.utils import crop_hand, crop_hand_with_keypoints
 
 
 class VTN_ATT_PF_Dataset(Dataset):
@@ -108,7 +105,7 @@ class VTN_ATT_PF_Dataset(Dataset):
         missing_wrists_right = []
 
         for frame,frame_index in zip(frames,selected_index):
-            if self.data_cfg['crop_two_hand']:
+            if self.data_cfg['crop_two_hand'] or self.data_cfg['crop_two_hand_with_keypoints']:
                 
                 kp_path = os.path.join(self.base_url,'poses',name.replace(".mp4",""),
                                     name.replace(".mp4","") + '_{:06d}_'.format(frame_index) + 'keypoints.json')
@@ -116,17 +113,36 @@ class VTN_ATT_PF_Dataset(Dataset):
                 with open(kp_path, 'r') as keypoints_file:
                     value = json.loads(keypoints_file.read())
                     
-                    keypoints = np.array(value['pose_threshold_02']) # 26,3
-                    x = 320*keypoints[:,0]/width
-                    y = 256*keypoints[:,1]/height
+                    crop_keypoints = np.array(value['pose_threshold_02']) # 26,3
+                    x = 320*crop_keypoints[:,0]/width
+                    y = 256*crop_keypoints[:,1]/height
                    
-                keypoints = np.stack((x, y), axis=0)
-               
+                crop_keypoints = np.stack((x, y), axis=0)
+
+            if self.data_cfg['crop_two_hand_with_keypoints']:
+                kp_path = os.path.join(self.base_url, 'hand_poses', name.replace(".mp4", ""),
+                                       name.replace(".mp4", "") + '_{:06d}_'.format(frame_index) + 'keypoints.json')
+                # load keypoints
+                with open(kp_path, 'r') as keypoints_file:
+                    value = json.loads(keypoints_file.read())
+
+                    hand_keypoints = np.array(value['pose_threshold_02'])  # 26,3
+                    x = 320 * hand_keypoints[:, 0] / width
+                    y = 256 * hand_keypoints[:, 1] / height
+
+                hand_keypoints = np.stack((x, y), axis=1)
            
             crops = None
             if self.data_cfg['crop_two_hand']:
-                crops,missing_wrists_left,missing_wrists_right = crop_hand(frame,keypoints,self.data_cfg['WRIST_DELTA'],self.data_cfg['SHOULDER_DIST_EPSILON'],
+                crops,missing_wrists_left,missing_wrists_right = crop_hand(frame,crop_keypoints,self.data_cfg['WRIST_DELTA'],self.data_cfg['SHOULDER_DIST_EPSILON'],
                                                                        self.transform,len(clip),missing_wrists_left,missing_wrists_right)
+            elif self.data_cfg['crop_two_hand_with_keypoints']:
+                crops, missing_wrists_left, missing_wrists_right = crop_hand_with_keypoints(frame, crop_keypoints,
+                                                                             hand_keypoints,
+                                                                             self.data_cfg['WRIST_DELTA'],
+                                                                             self.data_cfg['SHOULDER_DIST_EPSILON'],
+                                                                             self.transform, len(clip),
+                                                                             missing_wrists_left, missing_wrists_right)
             else:
                 crops = self.transform(frame)
             clip.append(crops)
