@@ -5,9 +5,9 @@ from typing import Callable, Optional, List, Type, Union
 import torch
 import torch.nn as nn
 
-from kan_convs import BottleNeckKAGNConv2DLayer, KAGNFocalModulation2D, BottleNeckKAGNFocalModulation2D
-from kan_convs import KALNConv2DLayer, KANConv2DLayer, KACNConv2DLayer, FastKANConv2DLayer, KAGNConv2DLayer
-from kan_convs import SelfKAGNtention2D, BottleNeckSelfKAGNtention2D
+from convKAN.kan_convs import BottleNeckKAGNConv2DLayer, KAGNFocalModulation2D, BottleNeckKAGNFocalModulation2D
+from convKAN.kan_convs import KALNConv2DLayer, KANConv2DLayer, KACNConv2DLayer, FastKANConv2DLayer, KAGNConv2DLayer
+from convKAN.kan_convs import SelfKAGNtention2D, BottleNeckSelfKAGNtention2D
 from .model_utils import kan_conv1x1, fast_kan_conv1x1, kaln_conv1x1, kacn_conv1x1, kagn_conv1x1, \
     bottleneck_kagn_conv1x1
 from .reskanet import KANBasicBlock, FastKANBasicBlock, KALNBasicBlock, KACNBasicBlock, KANBottleneck, \

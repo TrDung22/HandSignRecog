@@ -8,9 +8,9 @@ import torch.nn.functional as F
 import torch.utils.checkpoint as cp
 from torch import Tensor
 
-from kan_convs import KALNConv2DLayer, KANConv2DLayer, KACNConv2DLayer, FastKANConv2DLayer, KAGNConv2DLayer, \
+from convKAN.kan_convs import KALNConv2DLayer, KANConv2DLayer, KACNConv2DLayer, FastKANConv2DLayer, KAGNConv2DLayer, \
     BottleNeckKAGNConv2DLayer
-from kans import KAN, KALN, KAGN, KACN, FastKAN, BottleNeckKAGN
+from convKAN.kans import KAN, KALN, KAGN, KACN, FastKAN, BottleNeckKAGN
 from .model_utils import kan_conv1x1, fast_kan_conv1x1, kaln_conv1x1, kacn_conv1x1, kan_conv3x3, kaln_conv3x3, \
     fast_kan_conv3x3, kacn_conv3x3, kagn_conv1x1, kagn_conv3x3, bottleneck_kagn_conv1x1, bottleneck_kagn_conv3x3, \
     moe_bottleneck_kagn_conv3x3

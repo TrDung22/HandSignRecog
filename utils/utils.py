@@ -54,7 +54,17 @@ def load_model(cfg):
     if cfg['training']['pretrained']:
         print(f"load pretrained model: {cfg['training']['pretrained_model']}")
         if cfg['data']['model_name'] == 'vtn_att_poseflow':
-            if '.ckpt' in cfg['training']['pretrained_model']:
+            if ('.ckpt' in cfg['training']['pretrained_model']) and ('vggkan' in cfg['model']['cnn']):
+                model = VTNHCPF(**cfg['model'],sequence_length=cfg['data']['num_output_frames'])
+                new_state_dict = {}
+                with pl_legacy_patch():
+                    checkpoint = torch.load(cfg['training']['pretrained_model'], map_location='cpu')['state_dict']
+                    for key, value in checkpoint.items():
+                        new_key = key.replace('model.', '')
+                        if not new_key.startswith('feature_extractor'):
+                            new_state_dict[new_key] = value
+                model.load_state_dict(new_state_dict, strict=False)
+            elif ('.ckpt' in cfg['training']['pretrained_model']) and ('rn' in cfg['model']['cnn']):
                 model = VTNHCPF(**cfg['model'],sequence_length=cfg['data']['num_output_frames'])
                 new_state_dict = {}
                 with pl_legacy_patch():
@@ -67,14 +77,14 @@ def load_model(cfg):
                 model = VTNHCPF(**cfg['model'],sequence_length=cfg['data']['num_output_frames'])
                 # Hot fix cause cannot find file .ckpt
                 # Only need the line below in root repo:
-                model.load_state_dict(torch.load(cfg['training']['pretrained_model'],map_location='cpu'))
+                # model.load_state_dict(torch.load(cfg['training']['pretrained_model'],map_location='cpu'))
                 # Fix path:
-                # new_state_dict = {}
-                # for key, value in torch.load(cfg['training']['pretrained_model'],map_location='cpu').items():
-                #         new_state_dict[key.replace('model.','')] = value
-                # model.reset_head(226) # AUTSL
-                # model.load_state_dict(new_state_dict)
-                # model.reset_head(model.num_classes)
+                new_state_dict = {}
+                for key, value in torch.load(cfg['training']['pretrained_model'],map_location='cpu').items():
+                        new_state_dict[key.replace('model.','')] = value
+                model.reset_head(226) # AUTSL
+                model.load_state_dict(new_state_dict)
+                model.reset_head(model.num_classes)
         elif cfg['data']['model_name'] == 'VTNHCPF_Three_view':
             model = VTNHCPF_Three_View(**cfg['model'],sequence_length=cfg['data']['num_output_frames'])
             if '.ckpt' in cfg['training']['pretrained_model']:

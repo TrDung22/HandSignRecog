@@ -7,7 +7,8 @@ data:
   # dataset_name: AUTSL
   temporal_stride: 2
   num_output_frames: 16
-  crop_two_hand: true
+  crop_two_hand: True
+  crop_two_hand_with_keypoints: false
   transform_cfg:
     index_setting:
       - segment #train_p
@@ -21,7 +22,7 @@ data:
   SHOULDER_DIST_EPSILON: 1.2
   WRIST_DELTA: 0.15
   # label_folder: label
-  label_folder: label/labelCenterWithOrd1/labelDefault
+  label_folder: label1-200/label/labelCenterWithOrd1/labelCenterWithout29_ord1_4316_792_791
   data_type: labels
 training:
   coefficient:
@@ -32,8 +33,8 @@ training:
   device: cuda:1
   overwrite: true
   log_freq: 1
-  # experiment_name: "vtn_att_poseflow autsl for one view"
-  experiment_name: "vtn_att_poseflow autsl to vsl for one view default"
+  experiment_name: "vtn_att_poseflow vggkanbn11v4opt autsl to vsl for one view"
+  # experiment_name: "vtn_att_poseflow autsl to vsl for one view default"
   model_dir: results/vtn_att_poseflow/vsl
   random_seed: 42
   shuffle: True
@@ -54,7 +55,7 @@ training:
   top_k: 5
   print_stats: true
   pretrained: true
-  pretrained_model: checkpoints/VTN_HCPF.ckpt
+  pretrained_model: checkpoints/vtn_att_poseflow/vtn_att_poseflow vggkanbn11v4opt autsl for one view/best_checkpoints.pth
   lr_step_size: 10
   gamma: 0.8
   num_accumulation_steps: 4
@@ -76,6 +77,8 @@ model:
   num_heads: 8
   num_layers: 4
   embed_size: 512
-  cnn: rn34
-  freeze_layers: 5 # free layers in cnn
+  # embed_size: 768 # vggkanbn11v4opt
+  cnn: vggkanbn11v4opt
+  # freeze_layers: 5 # free layers in cnn
+  freeze_layers: 9 # free layers in vgg-like kan 11v4
   dropout: 0.1

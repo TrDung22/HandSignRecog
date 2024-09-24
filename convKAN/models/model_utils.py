@@ -2,12 +2,12 @@ from typing import Callable, List, Optional
 
 import torch.nn as nn
 
-from kan_convs import KALNConv2DLayer, KANConv2DLayer, KACNConv2DLayer, FastKANConv2DLayer, KAGNConv2DLayer, \
+from convKAN.kan_convs import KALNConv2DLayer, KANConv2DLayer, KACNConv2DLayer, FastKANConv2DLayer, KAGNConv2DLayer, \
     WavKANConv2DLayer
-from kan_convs import MoEKALNConv2DLayer, MoEKAGNConv2DLayer, BottleNeckKAGNConv2DLayer
-from kan_convs import SelfKAGNtention2D, BottleNeckSelfKAGNtention2D
-from kan_convs import MoEBottleNeckKAGNConv2DLayer
-from utils import L1
+from convKAN.kan_convs import MoEKALNConv2DLayer, MoEKAGNConv2DLayer, BottleNeckKAGNConv2DLayer
+from convKAN.kan_convs import SelfKAGNtention2D, BottleNeckSelfKAGNtention2D
+from convKAN.kan_convs import MoEBottleNeckKAGNConv2DLayer
+from convKAN.utils import L1
 
 
 def kan_conv3x3(in_planes: int, out_planes: int, spline_order: int = 3, groups: int = 1, stride: int = 1,
