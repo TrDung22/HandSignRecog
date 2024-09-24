@@ -52,7 +52,7 @@ optim:
   use_triton: true
 
 wandb:
-  entity: 'add your entity'
+  entity: 'TrDung22'
   project_name: 'imagenet1k-reskagnet50'
 
 loss:

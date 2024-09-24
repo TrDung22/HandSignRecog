@@ -28,7 +28,7 @@ def impute_missing_keypoints(poses, file_name):
                 # Không in ra màn hình nữa
                 # Thu thập thông tin vào danh sách
                 missing_keypoints_info.append({
-                    'file_name': file_name,
+                    'name': file_name,
                     'missing_frame': i,
                     'missing_keypoint_index': kpi,
                     'replacement_frame': None  # Sẽ cập nhật sau
@@ -53,7 +53,7 @@ def impute_missing_keypoints(poses, file_name):
                 poses[i, kpi] = poses[replacement, kpi]
                 # Cập nhật thông tin replacement_frame trong danh sách
                 for info in missing_keypoints_info:
-                    if info['file_name'] == file_name and info['missing_frame'] == i and info['missing_keypoint_index'] == kpi:
+                    if info['name'] == file_name and info['missing_frame'] == i and info['missing_keypoint_index'] == kpi:
                         info['replacement_frame'] = replacement
             else:
                 # Nếu không tìm thấy frame thay thế, có thể để giá trị mặc định hoặc xử lý khác
@@ -117,13 +117,13 @@ def gen_pose(base_url, file_name, pose_detector, csv_writer):
 if __name__ == "__main__":
     import csv
 
-    full_data = pd.read_csv("/home/ibmelab/Documents/GG/VSLRecognition/vsl/label1-200/vsl_200_all_without_29_ord1.csv")
+    full_data = pd.read_csv("/home/ibmelab/Documents/GG/VSLRecognition/AUTSL/full_labels.csv")
     print(full_data.columns)
     pose_detector = MMPoseInferencer("rtmpose-m_8xb64-270e_coco-wholebody-256x192")
 
     # Mở file CSV để ghi thông tin về keypoint bị thiếu
-    with open('/home/ibmelab/Documents/GG/VSLRecognition/vsl/missing_keypoints_info_1_200.csv', mode='w', newline='') as csv_file:
-        fieldnames = ['file_name', 'missing_frame', 'missing_keypoint_index', 'replacement_frame']
+    with open('/home/ibmelab/Documents/GG/VSLRecognition/AUTSL/missing_keypoints_info.csv', mode='w', newline='') as csv_file:
+        fieldnames = ['name', 'missing_frame', 'missing_keypoint_index', 'replacement_frame']
         csv_writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
 
         # Ghi tiêu đề cột
@@ -131,5 +131,5 @@ if __name__ == "__main__":
 
         print(full_data.shape)
         for idx, data in full_data.iterrows():
-            gen_pose("/home/ibmelab/Documents/GG/VSLRecognition/vsl/videos", data['file_name'], pose_detector, csv_writer)
-            print("Done", data['file_name'])
+            gen_pose("/home/ibmelab/Documents/GG/VSLRecognition/AUTSL/videos", data['name'], pose_detector, csv_writer)
+            print("Done", data['name'])

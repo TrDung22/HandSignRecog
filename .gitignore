@@ -16,3 +16,4 @@ wandb
 tools/madeLabel.py
 tools/rmEmptyFromCSV.py
 vsl
+test.py

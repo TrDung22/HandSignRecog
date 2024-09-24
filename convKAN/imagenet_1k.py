@@ -10,10 +10,9 @@ from torchinfo import summary
 from torchvision.transforms import v2
 from torchvision.transforms.autoaugment import AutoAugmentPolicy
 
-from models import reskagnet50
+from models import reskagnet50, VGGKAGN_BN
 from train import Classification, train_model, FocalLoss
 from utils import GradCAMReporter
-
 
 def inverse_normalize(tensor, mean, std):
     for t, m, s in zip(tensor, mean, std):
@@ -112,7 +111,7 @@ def get_data(cfg):
     return train_dataset, val_dataset, test_dataset, cam_reporter
 
 
-@hydra.main(version_base=None, config_path="./configs/", config_name="imagenet1k.yaml")
+@hydra.main(version_base=None, config_path="./conigs/", config_name="imagenet1k.yaml")
 def main(cfg):
     model = reskagnet50(3,
                     1000,
@@ -126,7 +125,7 @@ def main(cfg):
                     )
 
     summary(model, (64, 3, 224, 224), device='cpu')
-    dataset_train, dataset_val, dataset_test, cam_reporter = get_data(cfg)
+    dataset_train, dataset_val, dataset_test, cam_reporter = get_data()
     # loss_func = nn.CrossEntropyLoss(label_smoothing=cfg.loss.label_smoothing)
     loss_func = FocalLoss(gamma=1.5)
 

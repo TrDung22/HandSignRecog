@@ -8,6 +8,7 @@ data:
   temporal_stride: 2
   num_output_frames: 16
   crop_two_hand: true
+  crop_two_hand_with_keypoints: false
   transform_cfg:
     index_setting:
       - segment #train_p
@@ -33,7 +34,7 @@ training:
   device: cuda:1
   overwrite: true
   log_freq: 1
-  experiment_name: "vtn_att_poseflow autsl to vsl for one view(Testing)"
+  experiment_name: "vtn_att_poseflow vggkanbn11v4opt autsl for one view(Testing)"
   model_dir: results/vtn_att_poseflow/vsl
   random_seed: 42
   shuffle: True
@@ -54,7 +55,7 @@ training:
   top_k: 5
   print_stats: true
   pretrained: true
-  pretrained_model: checkpoints/vtn_att_poseflow/vtn_att_poseflow autsl to vsl for one view/best_checkpoints.pth
+  pretrained_model: checkpoints/vtn_att_poseflow/vtn_att_poseflow keypoints autsl to vsl for one view/best_checkpoints.pth
   lr_step_size: 10
   gamma: 0.8
   num_accumulation_steps: 4
