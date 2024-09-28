@@ -70,9 +70,9 @@ def load_model(cfg):
                 with pl_legacy_patch():
                     for key, value in torch.load(cfg['training']['pretrained_model'],map_location='cpu')['state_dict'].items():
                         new_state_dict[key.replace('model.','')] = value
-                model.reset_head(226) # AUTSL
+                # model.reset_head(226) # AUTSL
                 model.load_state_dict(new_state_dict)
-                model.reset_head(model.num_classes)
+                # model.reset_head(model.num_classes)
             else:
                 model = VTNHCPF(**cfg['model'],sequence_length=cfg['data']['num_output_frames'])
                 # Hot fix cause cannot find file .ckpt

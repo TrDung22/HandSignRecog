@@ -13,7 +13,7 @@ from dataset.videoLoader import get_selected_indexs,pad_index
 import cv2
 import torchvision
 from utils.video_augmentation import *
-from dataset.utils import crop_hand, crop_hand_with_keypoints
+from dataset.utils import crop_hand, crop_hand_with_keypoints, crop_hand_with_keypoints_and_lines, crop_hand_with_keypoints_and_lines_v2
 
 
 class VTN_ATT_PF_Dataset(Dataset):
@@ -136,6 +136,13 @@ class VTN_ATT_PF_Dataset(Dataset):
             if self.data_cfg['crop_two_hand']:
                 crops,missing_wrists_left,missing_wrists_right = crop_hand(frame,crop_keypoints,self.data_cfg['WRIST_DELTA'],self.data_cfg['SHOULDER_DIST_EPSILON'],
                                                                        self.transform,len(clip),missing_wrists_left,missing_wrists_right)
+            elif self.data_cfg['crop_two_hand_with_keypoints'] and self.data_cfg['with_lines']:
+                crops, missing_wrists_left, missing_wrists_right = crop_hand_with_keypoints_and_lines_v2(frame, crop_keypoints,
+                                                                             hand_keypoints,
+                                                                             self.data_cfg['WRIST_DELTA'],
+                                                                             self.data_cfg['SHOULDER_DIST_EPSILON'],
+                                                                             self.transform, len(clip),
+                                                                             missing_wrists_left, missing_wrists_right)
             elif self.data_cfg['crop_two_hand_with_keypoints']:
                 crops, missing_wrists_left, missing_wrists_right = crop_hand_with_keypoints(frame, crop_keypoints,
                                                                              hand_keypoints,

@@ -15,5 +15,9 @@ receivedVideo
 wandb
 tools/madeLabel.py
 tools/rmEmptyFromCSV.py
+test_keypoints/
+tools/emptyFolderCheck.py
+tools/rmEmptyFolder.py
 vsl
 test.py
+warning.txt

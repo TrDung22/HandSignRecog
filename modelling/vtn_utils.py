@@ -100,11 +100,11 @@ class FeatureExtractor(nn.Module):
         
         # Freeze layers if requested.
         for layer_index in range(freeze_layers):
-            for param in self.network[layer_index].parameters(True):
+            for param in self.resnet[layer_index].parameters(True):
                 param.requires_grad = False
 
         # ResNet-18 and ResNet-34 output 512 features after pooling.
-        if embed_size != 512 and (cnn == 'rn18' or cnn == 'rn34' or cnn == 'rn50'):
+        if embed_size != 512 and (cnn == 'rn18' or cnn == 'rn34'):
             self.pointwise_conv = nn.Conv2d(512, embed_size, 1)
         else:
             self.pointwise_conv = nn.Identity()
@@ -125,7 +125,7 @@ class FeatureExtractor(nn.Module):
         # Process all sequential data in parallel as a large mini-batch.
         rgb_clip = rgb_clip.view(b * t, c, h, w)
 
-        features = self.network(rgb_clip)
+        features = self.resnet(rgb_clip)
 
         # Transform to the desired embedding size.
         features = self.pointwise_conv(features)

@@ -62,56 +62,60 @@ def impute_missing_keypoints(poses, file_name):
     return poses, missing_keypoints_info
 
 def gen_pose(base_url, file_name, pose_detector, csv_writer):
-    video_url = os.path.join(base_url, file_name)
-    pose_results = pose_detector(video_url)
+    try:
+        video_url = os.path.join(base_url, file_name)
+        pose_results = pose_detector(video_url)
 
-    # kp_folder = video_url.replace("video_200_400",'poses_200_400').replace('.mp4',"")
-    kp_folder = video_url.replace("videos", 'hand_poses').replace('.mp4', "")
-    if not os.path.exists(kp_folder):
-        os.makedirs(kp_folder, exist_ok=True)
+        # kp_folder = video_url.replace("video_200_400",'poses_200_400').replace('.mp4',"")
+        kp_folder = video_url.replace("videos", 'hand_poses').replace('.mp4', "")
+        if not os.path.exists(kp_folder):
+            os.makedirs(kp_folder, exist_ok=True)
 
-        # Danh sách để lưu trữ pose và prob cho tất cả các khung hình
-        all_poses = []
-        all_probs = []
+            # Danh sách để lưu trữ pose và prob cho tất cả các khung hình
+            all_poses = []
+            all_probs = []
 
-        for idx, pose_result in enumerate(pose_results):
-            pose = pose_result['predictions'][0][0]['keypoints'][92:]
-            prob = pose_result['predictions'][0][0]['keypoint_scores'][92:]
-            all_poses.append(pose)
-            all_probs.append(prob)
+            for idx, pose_result in enumerate(pose_results):
+                pose = pose_result['predictions'][0][0]['keypoints'][91:]
+                prob = pose_result['predictions'][0][0]['keypoint_scores'][91:]
+                all_poses.append(pose)
+                all_probs.append(prob)
 
-        # Chuyển đổi danh sách thành mảng NumPy
-        all_poses = np.array(all_poses)  # Shape: (num_frames, num_keypoints, 2)
-        all_probs = np.array(all_probs)  # Shape: (num_frames, num_keypoints)
+            # Chuyển đổi danh sách thành mảng NumPy
+            all_poses = np.array(all_poses)  # Shape: (num_frames, num_keypoints, 2)
+            all_probs = np.array(all_probs)  # Shape: (num_frames, num_keypoints)
 
-        # Áp dụng ngưỡng xác suất
-        poses_threshold = np.where(all_probs[:, :, None] > 0.2, all_poses, 0)
+            # Áp dụng ngưỡng xác suất
+        
+            poses_threshold = np.where(all_probs[:, :, None] > 0.2, all_poses, 0)
 
-        # Áp dụng hàm impute_missing_keypoints và nhận thông tin về keypoint bị thiếu
-        poses_imputed, missing_keypoints_info = impute_missing_keypoints(poses_threshold, file_name)
+            # Áp dụng hàm impute_missing_keypoints và nhận thông tin về keypoint bị thiếu
+            poses_imputed, missing_keypoints_info = impute_missing_keypoints(poses_threshold, file_name)
 
-        # Lưu thông tin keypoint bị thiếu vào CSV
-        if missing_keypoints_info:
-            for info in missing_keypoints_info:
-                csv_writer.writerow(info)
+            # Lưu thông tin keypoint bị thiếu vào CSV
+            if missing_keypoints_info:
+                for info in missing_keypoints_info:
+                    csv_writer.writerow(info)
 
-        # Lưu kết quả sau khi điền keypoint bị thiếu
-        for idx in range(len(poses_imputed)):
-            pose = poses_imputed[idx]
-            prob = all_probs[idx]
-            raw_pose = [[value[0], value[1], 0] for value in pose]
-            pose_threshold_02 = [[value[0], value[1], 0] if prob[i] > 0.2 else [0, 0, 0] for i, value in enumerate(pose)]
-            dict_data = {
-                "raw_pose": raw_pose,
-                "pose_threshold_02": pose_threshold_02,
-                "prob": prob.tolist()
-            }
-            dest = os.path.join(kp_folder, file_name.replace(".mp4", "") + '_{:06d}_'.format(idx) + 'keypoints.json')
+            # Lưu kết quả sau khi điền keypoint bị thiếu
+            for idx in range(len(poses_imputed)):
+                pose = poses_imputed[idx]
+                prob = all_probs[idx]
+                raw_pose = [[value[0], value[1], 0] for value in pose]
+                pose_threshold_02 = [[value[0], value[1], 0] if prob[i] > 0.2 else [0, 0, 0] for i, value in enumerate(pose)]
+                dict_data = {
+                    "raw_pose": raw_pose,
+                    "pose_threshold_02": pose_threshold_02,
+                    "prob": prob.tolist()
+                }
+                dest = os.path.join(kp_folder, file_name.replace(".mp4", "") + '_{:06d}_'.format(idx) + 'keypoints.json')
 
-            with open(dest, 'w') as f:
-                json.dump(dict_data, f)
-    else:
-        print('exists')
+                with open(dest, 'w') as f:
+                    json.dump(dict_data, f)
+        else:
+            print('exists')
+    except Exception as e:
+        print(f"An error occurred with file {file_name}: {e}")
 
 
 if __name__ == "__main__":
