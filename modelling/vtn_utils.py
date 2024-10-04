@@ -13,6 +13,7 @@ import torchvision.models as models
 import torchvision
 from convKAN.models import VGGKAGN_BN,vggkagn
 from convKAN.kan_convs import BottleNeckKAGNConv2DLayer
+from AAGCN.aagcn import AAGCN
 
 class FeatureExtractor(nn.Module):
     """Feature extractor for RGB clips, powered by a 2D CNN backbone."""
@@ -136,6 +137,33 @@ class FeatureExtractor(nn.Module):
         # Restore the original dimensions of the tensor.
         features = features.view(b, t, -1)
 
+        return features
+    
+class FeatureExtractorGCN(nn.Module):
+    """Feature extractor for RGB clips, powered by a GCN backbone."""
+
+    def __init__(self, gcn='AAGCN',freeze_layers=5, learning_rate=0.0137296, 
+                 weight_decay=0.000150403, num_point=46, num_person=1, in_channels=2):
+        """Initialize the feature extractor with given GCN backbone and desired feature size."""
+        super().__init__()
+
+        if gcn == 'AAGCN':
+            model2 = AAGCN(num_point=num_point, num_person=num_person, in_channels=in_channels,
+                graph_args = {"layout" :"mediapipe_two_hand", "strategy": "spatial"},
+                learning_rate=learning_rate, weight_decay=weight_decay)
+        else:
+            raise ValueError(f"Unknown value for 'gcn': {gcn}")
+
+        self.aagcn = nn.Sequential(*list(model2.children())[:-3]) 
+        
+        for layer_index in range(freeze_layers):
+            for param in self.aagcn[layer_index].parameters(True):
+                param.requires_grad = False
+
+    def forward(self, keypoints):
+        """Extract features from the RGB images."""
+        """N, C, T, V, M"""
+        features = self.aagcn(keypoints)
         return features
 
 class SelfAttention(nn.Module):
