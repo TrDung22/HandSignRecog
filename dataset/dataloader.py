@@ -22,6 +22,13 @@ def vtn_pf_collate_fn_(batch):
     poseflow = torch.stack([s[1] for s in batch],dim = 0) 
     return {'clip':clip,'poseflow':poseflow},labels
 
+def vtn_gcn_collate_fn_(batch):
+    clip = torch.stack([s[0] for s in batch], dim = 0)
+    poseflow = torch.stack([s[1] for s in batch], dim = 0)
+    keypoints = torch.stack([s[2] for s in batch], dim = 0)
+    labels = torch.stack([s[3] for s in batch], dim = 0)
+    return {'clip':clip, 'poseflow':poseflow, 'keypoints':keypoints},labels
+
 
 def gcn_bert_collate_fn_(batch):
     labels = torch.stack([s[1] for s in batch],dim = 0)
@@ -93,6 +100,8 @@ def distilation_collate_fn_(batch):
 def build_dataloader(cfg, split, is_train=True, model = None,labels = None):
     dataset = build_dataset(cfg['data'], split,model,train_labels = labels)
 
+    if cfg['data']['model_name'] == 'VTNHCPF_GCN':
+        collate_func = vtn_gcn_collate_fn_
     if cfg['data']['model_name'] == 'vtn_att_poseflow' or 'HandCrop' in cfg['data']['model_name'] or cfg['data']['model_name'] == 'VTNHCPF_OneView_Sim_Knowledge_Distilation_Inference':
         collate_func = vtn_pf_collate_fn_
     if cfg['data']['model_name'] == 'gcn_bert':

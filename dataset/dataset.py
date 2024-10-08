@@ -1,5 +1,5 @@
 from utils.video_augmentation import *
-from dataset.vtn_att_poseflow_model_dataset import VTN_ATT_PF_Dataset
+from dataset.vtn_att_poseflow_model_dataset import VTN_ATT_PF_Dataset, VTN_GCN_Dataset
 from .three_viewpoints import ThreeViewsData
 from dataset.i3d import InceptionI3D_Data
 from dataset.swin_transformer import SwinTransformer
@@ -47,6 +47,9 @@ def build_image_transform(dataset_cfg,split,model = None):
 
 def build_dataset(dataset_cfg, split,model = None,**kwargs):
     dataset = None
+
+    if dataset_cfg['model_name'] == 'VTNHCPF_GCN':
+        dataset = VTN_GCN_Dataset(dataset_cfg['base_url'],split,dataset_cfg,**kwargs)
 
     if dataset_cfg['model_name'] == "vtn_att_poseflow" or 'HandCrop' in dataset_cfg['model_name'] or dataset_cfg['model_name'] == 'VTNHCPF_OneView_Sim_Knowledge_Distilation_Inference':
         dataset = VTN_ATT_PF_Dataset(dataset_cfg['base_url'],split,dataset_cfg,**kwargs)

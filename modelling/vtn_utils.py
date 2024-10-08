@@ -14,6 +14,7 @@ import torchvision
 from convKAN.models import VGGKAGN_BN,vggkagn
 from convKAN.kan_convs import BottleNeckKAGNConv2DLayer
 from AAGCN.aagcn import AAGCN
+from pytorch_lightning.utilities.migration import pl_legacy_patch
 
 class FeatureExtractor(nn.Module):
     """Feature extractor for RGB clips, powered by a 2D CNN backbone."""
@@ -97,7 +98,7 @@ class FeatureExtractor(nn.Module):
         if cnn == 'rn18' or cnn == 'rn34' or cnn =='rn50':
             self.resnet = nn.Sequential(*list(model.children())[:-2])
         elif cnn == 'vggkan11v4' or cnn =='vggkanbn11v4' or cnn == 'vggkanbn11v4sa' or  cnn == 'vggkan11v2' or cnn == 'vggkanbn11v4opt':                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           
-            self.network = nn.Sequential(*model.features)
+            self.convkan = model.features
         
         # Freeze layers if requested.
         for layer_index in range(freeze_layers):
@@ -127,44 +128,62 @@ class FeatureExtractor(nn.Module):
         rgb_clip = rgb_clip.view(b * t, c, h, w)
 
         features = self.resnet(rgb_clip)
-
         # Transform to the desired embedding size.
         features = self.pointwise_conv(features)
 
         # Transform the output of the ResNet (C x H x W) to a single feature vector using pooling.
         features = self.avg_pool(features, 1).squeeze()
-
         # Restore the original dimensions of the tensor.
         features = features.view(b, t, -1)
-
         return features
     
 class FeatureExtractorGCN(nn.Module):
     """Feature extractor for RGB clips, powered by a GCN backbone."""
 
-    def __init__(self, gcn='AAGCN',freeze_layers=5, learning_rate=0.0137296, 
+    def __init__(self, gcn='AAGCN',freeze_layers=12, learning_rate=0.0137296, 
                  weight_decay=0.000150403, num_point=46, num_person=1, in_channels=2):
         """Initialize the feature extractor with given GCN backbone and desired feature size."""
         super().__init__()
 
         if gcn == 'AAGCN':
-            model2 = AAGCN(num_point=num_point, num_person=num_person, in_channels=in_channels,
+            self.aagcn = AAGCN(num_point=num_point, num_person=num_person, in_channels=in_channels,
                 graph_args = {"layout" :"mediapipe_two_hand", "strategy": "spatial"},
                 learning_rate=learning_rate, weight_decay=weight_decay)
         else:
             raise ValueError(f"Unknown value for 'gcn': {gcn}")
-
-        self.aagcn = nn.Sequential(*list(model2.children())[:-3]) 
         
-        for layer_index in range(freeze_layers):
-            for param in self.aagcn[layer_index].parameters(True):
-                param.requires_grad = False
+        # checkpoint_path = "AAGCN/checkpoints/epoch=27-valid_accuracy=0.71-vsl199-modelWithoutStride.ckpt"
+        checkpoint_path = "AAGCN/checkpoints/epoch=95-valid_accuracy=0.73-vsl199.ckpt"
+
+        # Load the checkpoint
+        with pl_legacy_patch():
+            checkpoint = torch.load(checkpoint_path, map_location='cpu')
+
+        # Get the state dict
+        state_dict = checkpoint['state_dict']
+        del self.aagcn.fc
+        del self.aagcn.loss
+        del self.aagcn.metric
+        self.aagcn.load_state_dict(state_dict, strict=False)
+
+        print("Load pretrained GCN: ", checkpoint_path)
+        
+        # for layer_index in range(freeze_layers):
+        #     for param in self.aagcn[layer_index].parameters(True):
+        #         param.requires_grad = False
+
+        for param in self.aagcn.parameters():
+            param.requires_grad = False
 
     def forward(self, keypoints):
         """Extract features from the RGB images."""
         """N, C, T, V, M"""
         features = self.aagcn(keypoints)
-        return features
+        T_input = features.size(1) * 4  # Vì T_output = T_input / 4
+        features = features.permute(0, 2, 1)  # Chuyển thành [N, -1, T_output]
+        features_umsampled = torch.nn.functional.interpolate(features, size=T_input, mode='linear', align_corners=True)
+        features_umsampled = features_umsampled.permute(0, 2, 1)
+        return features_umsampled
 
 class SelfAttention(nn.Module):
     """Process sequences using self attention."""

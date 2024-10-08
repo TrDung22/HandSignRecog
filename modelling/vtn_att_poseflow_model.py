@@ -82,11 +82,11 @@ class VTNHCPF(nn.Module):
         # return y.mean(1) # convert to script
 
 
-class VTNHCPFwithGCN(nn.Module):
+class VTNHCPF_GCN(nn.Module):
     def __init__(self, num_classes=199, num_heads=4, num_layers=2, embed_size=512, sequence_length=16, cnn='rn34',
                  gcn='AAGCN', freeze_layers=0, dropout=0, **kwargs):
         super().__init__()
-        print("Model: VTNHCPF")
+        print("Model: VTNHCPF_GCN")
         self.sequence_length = sequence_length
         self.embed_size = embed_size
         self.num_classes = num_classes
@@ -95,8 +95,9 @@ class VTNHCPFwithGCN(nn.Module):
         self.feature_extractor_gcn = FeatureExtractorGCN(gcn, freeze_layers)
 
         num_attn_features = 2 * embed_size
+        num_gcn_features = int(embed_size/2)
         self.norm = MMTensorNorm(-1)
-        self.bottle_mm = nn.Linear(106 + num_attn_features + num_attn_features/2, num_attn_features)
+        self.bottle_mm = nn.Linear(106 + num_attn_features + num_gcn_features, num_attn_features)
 
         self.self_attention_decoder = SelfAttention(num_attn_features, num_attn_features,
                                                     [num_heads] * num_layers,
@@ -136,7 +137,7 @@ class VTNHCPFwithGCN(nn.Module):
         zc = zc.view(b, t, -1)
 
         zk = self.feature_extractor_gcn(keypoints)
-        
+
         zp = torch.cat((zc,zk,pose_clip), dim=-1)
 
         zp = self.norm(zp)

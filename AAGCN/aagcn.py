@@ -4,10 +4,11 @@ import numpy as np
 import torch
 import torch.nn as nn
 from torch.autograd import Variable
-from graph import Graph
+from AAGCN.graph import Graph
 import pytorch_lightning as pl
 from torchmetrics.classification import MulticlassAccuracy, BinaryAccuracy
 import torch.optim as optim
+from pytorch_lightning.utilities.migration import pl_legacy_patch
 
 def import_class(name):
     components = name.split('.')
@@ -336,12 +337,9 @@ class AAGCN(pl.LightningModule):
         self.save_hyperparameters()
 
     def forward(self, x):
+        if isinstance(x, dict):
+            x = x['keypoints']
         N, C, T, V, M = x.size()
-        print(N)
-        print(C)
-        print(T)
-        print(V)
-        print(M)
         x = x.permute(0, 4, 3, 1, 2).contiguous().view(N, M * V * C, T)
         x = self.data_bn(x.float())
         x = x.view(N, M, V, C, T).permute(0, 1, 3, 4, 2).contiguous().view(N * M, C, T, V)
@@ -360,20 +358,34 @@ class AAGCN(pl.LightningModule):
         # x = self.l12(x)
         # x = self.l13(x)
 
+        ### Original ###
         # N*M,C,T,V
-        c_new = x.size(1)
-        x = x.view(N, M, c_new, -1)
-        # print(x.shape)
+        # c_new = x.size(1)
+        # x = x.view(N, M, c_new, -1)
         # x = x.mean(3).mean(1)
-        x = x.mean(3)
-        # print(x.shape)
+        # # x = x.mean(3)
         # x = self.drop_out(x)
         # x = self.fc(x)
+
+        ### Option 1: [N,T,256] ###
+        x = x.mean(-1)  # Average over V; x shape: [N * M, C_new, T]
+        c_new = x.size(1)  # c_new = 256
+        T_new = x.size(2)
+
+        x = x.view(N, M, c_new, T_new)  # x shape: [N, M, c_new, T_new]
+        x = x.permute(0, 3, 1, 2)       # x shape: [N, T_new, M, c_new]
+        x = x.contiguous().view(N, T_new, -1)  # x shape: [N, T_new, M * c_new]
+
+        ### Option 2: [N,T,very large] ###
+        # C_new = x.size(1)
+        # x = x.view(N, M, C_new, T, V)  # x shape: [N, M, C_new, T, V]
+        # x = x.permute(0, 3, 1, 2, 4)  # x shape: [N, T, M, C_new, V]
+        # x = x.contiguous().view(N, T, -1)  # Flatten M, C_new, V into one dimension
         return x
 
     def training_step(self, batch, batch_idx):
         inputs, targets = batch
-        outputs = self(inputs)
+        outputs = self.forward(inputs)
         y_pred_class = torch.argmax(torch.softmax(outputs, dim=1), dim=1)
         # print("Targets : ", targets)
         # print("Preds : ", y_pred_class) 
@@ -443,8 +455,27 @@ if __name__ == "__main__":
                 learning_rate=config["learning_rate"], weight_decay=config["weight_decay"]).to(device)
     # print(model.device)
     # N, C, T, V, M
-    # model = nn.Sequential(*list(model.children())[:-3]
-    #                     )
+    # model = nn.Sequential(*list(model.children())[:-3])
+    checkpoint_path = "/home/ibmelab/Documents/GG/VSLRecognition/HandSignRecogDev/AAGCN/checkpoints/epoch=65-valid_accuracy=0.86-autsl-aagcn-fold=0.ckpt"
+
+        # Load the checkpoint
+    with pl_legacy_patch():
+        checkpoint = torch.load(checkpoint_path, map_location=device)
+
+    # Get the state dict
+    state_dict = checkpoint['state_dict']
+
+    # Remove the keys for the final layer (adjust 'fc' to match your model's final layer name)
+    # filtered_state_dict = {k: v for k, v in state_dict.items() if not k.startswith('fc.')}
+    del model.fc
+    del model.loss
+    del model.metric
+    # Load the filtered state dict into the model
+    model.load_state_dict(state_dict, strict=False)
+
+    for param in model.parameters():
+        param.requires_grad = False
+
     summary(model)
 
     x = torch.randn((1, 2, 80, 46, 1)).to(device)
