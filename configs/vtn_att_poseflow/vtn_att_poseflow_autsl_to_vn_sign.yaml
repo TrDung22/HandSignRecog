@@ -8,9 +8,9 @@ data:
   # dataset_name: AUTSL
   temporal_stride: 2
   num_output_frames: 16
-  crop_two_hand: false
-  crop_two_hand_with_keypoints: true
-  with_lines: true
+  crop_two_hand: true
+  crop_two_hand_with_keypoints: false
+  with_lines: false
   transform_cfg:
     index_setting:
       - segment #train_p
@@ -32,15 +32,15 @@ training:
     cts_x: 1
     cosine_x: 1
   label_smoothing: 0
-  device: cuda:0
+  device: cuda:1
   overwrite: true
   log_freq: 1
-  experiment_name: "VTNHCPF_GCN with interpolate upsample vsl for one view"
-  # experiment_name: "vtn_att_poseflow autsl to vsl for one view default"
+  experiment_name: "VTNHCPF_GCN 256*2 gcn features 1024:2 cnn features vsl for one view rn 34(1024 attention)"
+  # experiment_name: "vtn_att_poseflow autsl to vsl for one view rn18"
   model_dir: results/vtn_att_poseflow/vsl
   random_seed: 42
   shuffle: True
-  num_workers: 8
+  num_workers: 37
   prefetch_factor: 2
   batch_size: 30 #to-debug!
   total_epoch: 300 #to-debug!
@@ -58,10 +58,11 @@ training:
   print_stats: true
   pretrained: true
   pretrained_model: checkpoints/VTN_HCPF.ckpt
+  # pretrained_model: checkpoints/vtn_att_poseflow/vtn_att_poseflow autsl to vsl for one view rn18/best_checkpoints.pth
   lr_step_size: 10
   gamma: 0.8
   num_accumulation_steps: 4
-  patience: 15
+  patience: 30
   verbose: true
   delta: 0
   is_early_stopping: true
@@ -84,4 +85,4 @@ model:
   gcn: AAGCN
   freeze_layers: 5 # free layers in cnn
   # freeze_layers: 9 # free layers in vgg-like kan 11v4
-  dropout: 0.1
+  dropout: 0.2

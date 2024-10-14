@@ -318,7 +318,7 @@ class AAGCN(pl.LightningModule):
         # self.l12 = TCN_GCN_unit(512, 512, A, adaptive=adaptive, attention=attention)
         # self.l13 = TCN_GCN_unit(512, 512, A, adaptive=adaptive, attention=attention)
 
-        self.fc = nn.Linear(256, num_class)
+        self.fc = nn.Linear(128, num_class)
         nn.init.normal_(self.fc.weight, 0, math.sqrt(2. / num_class))
         bn_init(self.data_bn, 1)
         if drop_out:
@@ -367,20 +367,38 @@ class AAGCN(pl.LightningModule):
         # x = self.drop_out(x)
         # x = self.fc(x)
 
-        ### Option 1: [N,T,256] ###
-        x = x.mean(-1)  # Average over V; x shape: [N * M, C_new, T]
-        c_new = x.size(1)  # c_new = 256
-        T_new = x.size(2)
+        ### Option 1: [N,T,output gcn layer] ###
+        # x = x.mean(-1)  # Average over V; x shape: [N * M, C_new, T]
+        # c_new = x.size(1)  # c_new = 256
+        # T_new = x.size(2)
 
-        x = x.view(N, M, c_new, T_new)  # x shape: [N, M, c_new, T_new]
-        x = x.permute(0, 3, 1, 2)       # x shape: [N, T_new, M, c_new]
-        x = x.contiguous().view(N, T_new, -1)  # x shape: [N, T_new, M * c_new]
+        # x = x.view(N, M, c_new, T_new)  # x shape: [N, M, c_new, T_new]
+        # x = x.permute(0, 3, 1, 2)       # x shape: [N, T_new, M, c_new]
+        # x = x.contiguous().view(N, T_new, -1)  # x shape: [N, T_new, M * c_new]
 
-        ### Option 2: [N,T,very large] ###
+        ### Option 2: [N,T,46*output_gcn] ###
         # C_new = x.size(1)
-        # x = x.view(N, M, C_new, T, V)  # x shape: [N, M, C_new, T, V]
+        # T_new = x.size(2)
+        # x = x.view(N, M, C_new, T_new, V)  # x shape: [N, M, C_new, T, V]
         # x = x.permute(0, 3, 1, 2, 4)  # x shape: [N, T, M, C_new, V]
-        # x = x.contiguous().view(N, T, -1)  # Flatten M, C_new, V into one dimension
+        # x = x.contiguous().view(N, T_new, -1)  # Flatten M, C_new, V into one dimension
+
+        ### Option 3: [N,T,D] with custome D ###
+        C_new = x.size(1)
+        T_new = x.size(2)
+        V_new = 2  # Desired reduced spatial dimension
+        x = x.permute(0, 2, 1, 3)  # x shape: [N*M, T_new, C_new, V]
+        x = x.reshape(-1, C_new, V)  # x shape: [N*M*T_new, C_new, V]
+
+        # Apply Adaptive Pooling over V
+        pool = nn.AdaptiveAvgPool1d(V_new)
+        x = pool(x)  # x shape: [N*M*T_new, C_new, V_new]
+
+        # Flatten C_new and V_new
+        x = x.view(N, M, T_new, -1)  # x shape: [N, M, T_new, C_new * V_new]
+        x = x.permute(0, 2, 1, 3)    # x shape: [N, T_new, M, C_new * V_new]
+        x = x.contiguous().view(N, T_new, -1)  # x shape: [N, T_new, M * C_new * V_new]
+
         return x
 
     def training_step(self, batch, batch_idx):
@@ -456,25 +474,22 @@ if __name__ == "__main__":
     # print(model.device)
     # N, C, T, V, M
     # model = nn.Sequential(*list(model.children())[:-3])
-    checkpoint_path = "/home/ibmelab/Documents/GG/VSLRecognition/HandSignRecogDev/AAGCN/checkpoints/epoch=65-valid_accuracy=0.86-autsl-aagcn-fold=0.ckpt"
+    # checkpoint_path = "/home/ibmelab/Documents/GG/VSLRecognition/HandSignRecogDev/AAGCN/checkpoints/epoch=65-valid_accuracy=0.86-autsl-aagcn-fold=0.ckpt"
 
-        # Load the checkpoint
-    with pl_legacy_patch():
-        checkpoint = torch.load(checkpoint_path, map_location=device)
+    #     # Load the checkpoint
+    # with pl_legacy_patch():
+    #     checkpoint = torch.load(checkpoint_path, map_location=device)
 
-    # Get the state dict
-    state_dict = checkpoint['state_dict']
+    # # Get the state dict
+    # state_dict = checkpoint['state_dict']
 
     # Remove the keys for the final layer (adjust 'fc' to match your model's final layer name)
     # filtered_state_dict = {k: v for k, v in state_dict.items() if not k.startswith('fc.')}
-    del model.fc
-    del model.loss
-    del model.metric
+    # del model.fc
+    # del model.loss
+    # del model.metric
     # Load the filtered state dict into the model
-    model.load_state_dict(state_dict, strict=False)
-
-    for param in model.parameters():
-        param.requires_grad = False
+    # model.load_state_dict(state_dict, strict=False)
 
     summary(model)
 

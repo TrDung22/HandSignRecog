@@ -80,6 +80,25 @@ def vtn_hc_pf_three_view_collate_fn_(batch):
     
     return {'left':left_video,'center':center_video,'right':right_video,'center_pf':center_pf,'left_pf':left_pf,'right_pf':right_pf},labels
 
+def vtn_3_gcn_collate_fn_(batch):
+    center_video = torch.stack([s[0] for s in batch],dim = 0)
+    left_video = torch.stack([s[3] for s in batch],dim = 0)
+    right_video = torch.stack([s[6] for s in batch],dim = 0)
+    
+
+    center_pf = torch.stack([s[1] for s in batch],dim = 0)
+    left_pf = torch.stack([s[4] for s in batch],dim = 0)
+    right_pf = torch.stack([s[7] for s in batch],dim = 0)
+
+    center_kp = torch.stack([s[2] for s in batch],dim = 0)
+    left_kp = torch.stack([s[5] for s in batch],dim = 0)
+    right_kp = torch.stack([s[8] for s in batch],dim = 0)
+
+    labels = torch.stack([s[9] for s in batch],dim = 0)
+
+    return {'left':left_video,'center':center_video,'right':right_video,'center_pf':center_pf,'left_pf':left_pf,'right_pf':right_pf,
+            'center_kp':center_kp,'left_kp':left_kp,'right_kp':right_kp},labels
+
 def distilation_collate_fn_(batch):
     center_video = torch.stack([s[0] for s in batch],dim = 0)
     left_video = torch.stack([s[2] for s in batch],dim = 0)

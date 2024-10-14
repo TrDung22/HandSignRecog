@@ -1,6 +1,7 @@
 task: ISLR
 data:
-  model_name: vtn_att_poseflow
+  # model_name: vtn_att_poseflow
+  model_name: VTNHCPF_GCN
   base_url: /home/ibmelab/Documents/GG/VSLRecognition/vsl
   # base_url: /home/ibmelab/Documents/GG/VSLRecognition/AUTSL
   dataset_name: VN_SIGN
@@ -34,13 +35,13 @@ training:
   device: cuda:1
   overwrite: true
   log_freq: 1
-  experiment_name: "vtn_att_poseflow vggkanbn11v4opt autsl for one view(Testing)"
+  experiment_name: "VTNHCPF_GCN 128 gcn features 1024 cnn features vsl for one view rn 34(1024 + 128 attention zk+zc+pose)(Testing)"
   model_dir: results/vtn_att_poseflow/vsl
   random_seed: 42
   shuffle: True
   num_workers: 12
   prefetch_factor: 4
-  batch_size: 3 #to-debug!
+  batch_size: 30 #to-debug!
   total_epoch: 300 #to-debug!
   learning_rate: 0.0001
   save_checkpoints: true
@@ -55,7 +56,7 @@ training:
   top_k: 5
   print_stats: true
   pretrained: true
-  pretrained_model: checkpoints/vtn_att_poseflow/vtn_att_poseflow keypoints autsl to vsl for one view/best_checkpoints.pth
+  pretrained_model: checkpoints/VTNHCPF_GCN/VTNHCPF_GCN 128 gcn features 1024 cnn features vsl for one view rn 34(1024 + 128 attention zk+zc+pose)/best_checkpoints.pth
   lr_step_size: 10
   gamma: 0.8
   num_accumulation_steps: 4
@@ -78,5 +79,6 @@ model:
   num_layers: 4
   embed_size: 512
   cnn: rn34
+  gcn: AAGCN
   freeze_layers: 5 # free layers in cnn
   dropout: 0.1

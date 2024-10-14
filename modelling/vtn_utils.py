@@ -140,7 +140,7 @@ class FeatureExtractor(nn.Module):
 class FeatureExtractorGCN(nn.Module):
     """Feature extractor for RGB clips, powered by a GCN backbone."""
 
-    def __init__(self, gcn='AAGCN',freeze_layers=12, learning_rate=0.0137296, 
+    def __init__(self, gcn='AAGCN',freeze_layers=10, learning_rate=0.0137296, 
                  weight_decay=0.000150403, num_point=46, num_person=1, in_channels=2):
         """Initialize the feature extractor with given GCN backbone and desired feature size."""
         super().__init__()
@@ -153,7 +153,9 @@ class FeatureExtractorGCN(nn.Module):
             raise ValueError(f"Unknown value for 'gcn': {gcn}")
         
         # checkpoint_path = "AAGCN/checkpoints/epoch=27-valid_accuracy=0.71-vsl199-modelWithoutStride.ckpt"
-        checkpoint_path = "AAGCN/checkpoints/epoch=95-valid_accuracy=0.73-vsl199.ckpt"
+        # checkpoint_path = "AAGCN/checkpoints/epoch=95-valid_accuracy=0.73-vsl199.ckpt"
+        # checkpoint_path = "AAGCN/checkpoints/epoch=65-valid_accuracy=0.86-autsl-aagcn-fold=0.ckpt"
+        checkpoint_path = "AAGCN/checkpoints/epoch=15-valid_accuracy=0.70-vsl199-small-model.ckpt"
 
         # Load the checkpoint
         with pl_legacy_patch():
@@ -168,9 +170,12 @@ class FeatureExtractorGCN(nn.Module):
 
         print("Load pretrained GCN: ", checkpoint_path)
         
-        # for layer_index in range(freeze_layers):
-        #     for param in self.aagcn[layer_index].parameters(True):
-        #         param.requires_grad = False
+        # for idx, child in enumerate(self.aagcn.children()):
+        #     if idx < freeze_layers:
+        #         for param in child.parameters():
+        #             param.requires_grad = False
+        #     else:
+        #         break
 
         for param in self.aagcn.parameters():
             param.requires_grad = False

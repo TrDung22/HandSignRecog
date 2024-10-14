@@ -68,10 +68,13 @@ def load_model(cfg):
                 model = VTNHCPF(**cfg['model'],sequence_length=cfg['data']['num_output_frames'])
                 new_state_dict = {}
                 with pl_legacy_patch():
-                    for key, value in torch.load(cfg['training']['pretrained_model'],map_location='cpu')['state_dict'].items():
-                        new_state_dict[key.replace('model.','')] = value
+                    checkpoint = torch.load(cfg['training']['pretrained_model'], map_location='cpu')['state_dict']
+                    for key, value in checkpoint.items():
+                        new_key = key.replace('model.', '')
+                        if not new_key.startswith('feature_extractor'):
+                            new_state_dict[new_key] = value
                 # model.reset_head(226) # AUTSL
-                model.load_state_dict(new_state_dict)
+                model.load_state_dict(new_state_dict, strict=False)
                 # model.reset_head(model.num_classes)
             else:
                 model = VTNHCPF(**cfg['model'],sequence_length=cfg['data']['num_output_frames'])
@@ -93,13 +96,25 @@ def load_model(cfg):
                     checkpoint = torch.load(cfg['training']['pretrained_model'], map_location='cpu')['state_dict']
                     for key, value in checkpoint.items():
                         new_key = key.replace('model.', '')
-                        if not new_key.startswith('bottle_mm'):
+                        # if not new_key.startswith('bottle_mm') and not new_key.startswith('self_attention_decoder') and not new_key.startswith('classifier'):
+                        # if not new_key.startswith('bottle_mm') and not new_key.startswith('self_attention_decoder'):
+                        # if not new_key.startswith('bottle_mm') and not new_key.startswith('classifier'):
+                        if not new_key.startswith('classifier'):
                             new_state_dict[new_key] = value
-                model.reset_head(226)
                 model.load_state_dict(new_state_dict, strict=False)
                 model.reset_head(model.num_classes)
             else:
+                # new_state_dict = {}
+                # checkpoint = torch.load(cfg['training']['pretrained_model'], map_location='cpu')
+                # for key, value in checkpoint.items():
+                #     if not key.startswith('bottle_mm') and not key.startswith('self_attention_decoder') and not key.startswith('classifier'):
+                #     # if not key.startswith('feature_extractor_gcn') and not key.startswith('classifier'):
+                #         new_state_dict[key] = value
+                # model.load_state_dict(new_state_dict, strict=False)
+                # model.reset_head(model.num_classes)
+                """"""
                 model.load_state_dict(torch.load(cfg['training']['pretrained_model'],map_location='cpu'))
+                
         elif cfg['data']['model_name'] == 'VTNHCPF_Three_view':
             model = VTNHCPF_Three_View(**cfg['model'],sequence_length=cfg['data']['num_output_frames'])
             if '.ckpt' in cfg['training']['pretrained_model']:

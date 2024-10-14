@@ -94,16 +94,17 @@ class VTNHCPF_GCN(nn.Module):
         self.feature_extractor = FeatureExtractor(cnn, embed_size, freeze_layers)
         self.feature_extractor_gcn = FeatureExtractorGCN(gcn, freeze_layers)
 
-        num_attn_features = 2 * embed_size
-        num_gcn_features = int(embed_size/2)
+        num_attn_features = embed_size
+        num_gcn_features = int(embed_size/2)*2
+        custom_attn_features = num_gcn_features
         self.norm = MMTensorNorm(-1)
-        self.bottle_mm = nn.Linear(106 + num_attn_features + num_gcn_features, num_attn_features)
+        self.bottle_mm = nn.Linear(106 + num_attn_features + num_gcn_features, num_attn_features + custom_attn_features)
 
-        self.self_attention_decoder = SelfAttention(num_attn_features, num_attn_features,
+        self.self_attention_decoder = SelfAttention(num_attn_features + custom_attn_features, num_attn_features + custom_attn_features,
                                                     [num_heads] * num_layers,
                                                     self.sequence_length, layer_norm=True,dropout = dropout)
-        self.classifier = LinearClassifier(num_attn_features, num_classes, dropout)
-        self.num_attn_features  = num_attn_features
+        self.classifier = LinearClassifier(num_attn_features + custom_attn_features, num_classes, dropout)
+        self.num_attn_features  = num_attn_features + custom_attn_features
         self.dropout = dropout
         self.num_classes = num_classes
         self.relu = F.relu
@@ -135,7 +136,9 @@ class VTNHCPF_GCN(nn.Module):
         zc = self.feature_extractor(rgb_clip)
         # Reshape back to extract features of both wrist crops as one feature vector.
         zc = zc.view(b, t, -1)
-
+        pool = nn.AdaptiveAvgPool1d(self.embed_size)
+        zc = pool(zc)
+        
         zk = self.feature_extractor_gcn(keypoints)
 
         zp = torch.cat((zc,zk,pose_clip), dim=-1)
@@ -213,7 +216,84 @@ class VTNHCPF_Three_View(nn.Module):
         return {
             'logits':y
         }
+
+class VTN3GCN(nn.Module):
+    def __init__(self, num_classes=199, num_heads=4, num_layers=2, embed_size=512, sequence_length=16, cnn='rn34',
+                 gcn='AAGCN', freeze_layers=0, dropout=0, **kwargs):
+        super().__init__()
+        print("Model: VTNHCPF_Three_View")
+        self.center = VTNHCPF_GCN(num_classes,num_heads,num_layers,embed_size,sequence_length,cnn,gcn,freeze_layers,dropout,**kwargs)
+        self.left = VTNHCPF_GCN(num_classes,num_heads,num_layers,embed_size,sequence_length,cnn,gcn,freeze_layers,dropout,**kwargs)
+        self.right = VTNHCPF_GCN(num_classes,num_heads,num_layers,embed_size,sequence_length,cnn,gcn,freeze_layers,dropout,**kwargs)
+        self.classifier = LinearClassifier(embed_size*2*3, num_classes, dropout)
+        self.feature_extractor = None
+        self.feature_extractor_gcn = None
+    def add_backbone(self):
+        self.feature_extractor = self.center.feature_extractor
+        self.feature_extractor_gcn = self.center.feature_extractor_gcn
+
+    def remove_head_and_backbone(self):
+        self.center.feature_extractor = nn.Identity()
+        self.left.feature_extractor = nn.Identity()
+        self.right.feature_extractor = nn.Identity()
+        self.center.feature_extractor_gcn = nn.Identity()
+        self.left.feature_extractor_gcn = nn.Identity()
+        self.right.feature_extractor_gcn = nn.Identity()
+        self.center.classifier = nn.Identity()
+        self.left.classifier = nn.Identity()
+        self.right.classifier = nn.Identity()
+        print("Remove head and backbone")
     
+    def freeze(self,layers = 2):
+        print(f"Freeze {layers} layers attn")
+        for i in range(layers):
+            for param in self.center.self_attention_decoder.layers[i].parameters():
+                param.requires_grad = False
+            for param in self.left.self_attention_decoder.layers[i].parameters():
+                param.requires_grad = False
+            for param in self.right.self_attention_decoder.layers[i].parameters():
+                param.requires_grad = False
+    def forward_features(self,left = None,center = None,right = None,left_kp = None,right_kp=None,center_kp=None,
+                         center_pf = None,left_pf = None,right_pf = None): 
+        b, t, x, c, h, w = left.size()
+        left_feature = self.feature_extractor(left.view(b, t * x, c, h, w)).view(b,t,-1)
+        right_feature = self.feature_extractor(right.view(b, t * x, c, h, w)).view(b,t,-1)
+        center_feature = self.feature_extractor(center.view(b, t * x, c, h, w)).view(b,t,-1)
+
+        left_kp_feature = self.feature_extractor_gcn(left_kp)
+        right_kp_feature = self.feature_extractor_gcn(right_kp)
+        center_kp_feature = self.feature_extractor_gcn(center_kp)
+        
+        left_ft = self.left.forward_features(left_feature,left_kp_feature,left_pf).mean(1)
+        center_ft = self.center.forward_features(center_feature,center_kp_feature,center_pf).mean(1)
+        right_ft = self.right.forward_features(right_feature,right_kp_feature,right_pf).mean(1)
+        
+        output_features = torch.cat([left_ft,center_ft,right_ft],dim = -1)
+       
+        return output_features
+    def forward(self,left = None,center = None,right = None,left_kp = None,right_kp=None,center_kp=None,
+                center_pf = None,left_pf = None,right_pf = None):  
+        b, t, x, c, h, w = left.size()
+        left_feature = self.feature_extractor(left.view(b, t * x, c, h, w)).view(b,t,-1)
+        right_feature = self.feature_extractor(right.view(b, t * x, c, h, w)).view(b,t,-1)
+        center_feature = self.feature_extractor(center.view(b, t * x, c, h, w)).view(b,t,-1)
+
+        left_kp_feature = self.feature_extractor_gcn(left_kp)
+        right_kp_feature = self.feature_extractor_gcn(right_kp)
+        center_kp_feature = self.feature_extractor_gcn(center_kp)
+        
+        left_ft = self.left.forward_features(left_feature,left_kp_feature,left_pf).mean(1)
+        center_ft = self.center.forward_features(center_feature,center_kp_feature,center_pf).mean(1)
+        right_ft = self.right.forward_features(right_feature,right_kp_feature,right_pf).mean(1)
+        
+        output_features = torch.cat([left_ft,center_ft,right_ft],dim = -1)
+       
+
+        y = self.classifier(output_features)
+
+        return {
+            'logits':y
+        }
 class VTNHCPF_OneView_Sim_Knowledge_Distilation(nn.Module):
     def __init__(self, num_classes=199, num_heads=4, num_layers=2, embed_size=512, sequence_length=16, cnn='rn34',
                  freeze_layers=0, dropout=0, **kwargs):

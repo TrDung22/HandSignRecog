@@ -227,16 +227,6 @@ class VTN_GCN_Dataset(Dataset):
         self.data_cfg = dataset_cfg
         self.data_name = dataset_cfg['dataset_name']
         self.transform = self.build_transform(split)
-        self.transform_gcn = self.build_transform_gcn(split)
-
-    def build_transform_gcn(self,split):
-        if split == 'train':
-            transform = Compose([
-                        RandomRotate(p=0.3)
-                        ])
-        else:
-            transform = None
-        return transform
     
     def transform_handflow(self, handflow):
         # Convert to a PyTorch tensor and transpose to get [C, V]

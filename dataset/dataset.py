@@ -4,7 +4,7 @@ from .three_viewpoints import ThreeViewsData
 from dataset.i3d import InceptionI3D_Data
 from dataset.swin_transformer import SwinTransformer
 from dataset.mvit import MVIT
-from dataset.vtn_hc_pf_three_view import VTNHCPF_ThreeViewsData
+from dataset.vtn_hc_pf_three_view import VTNHCPF_ThreeViewsData,VTN3GCNData
 from dataset.distilation import Distilation
 
 def build_video_transform(dataset_cfg,split):
@@ -50,6 +50,9 @@ def build_dataset(dataset_cfg, split,model = None,**kwargs):
 
     if dataset_cfg['model_name'] == 'VTNHCPF_GCN':
         dataset = VTN_GCN_Dataset(dataset_cfg['base_url'],split,dataset_cfg,**kwargs)
+
+    if dataset_cfg['model_name'] == 'VTN3GCN':
+        dataset = VTN3GCNData(dataset_cfg['base_url'],split,dataset_cfg,**kwargs)
 
     if dataset_cfg['model_name'] == "vtn_att_poseflow" or 'HandCrop' in dataset_cfg['model_name'] or dataset_cfg['model_name'] == 'VTNHCPF_OneView_Sim_Knowledge_Distilation_Inference':
         dataset = VTN_ATT_PF_Dataset(dataset_cfg['base_url'],split,dataset_cfg,**kwargs)
