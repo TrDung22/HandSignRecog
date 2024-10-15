@@ -35,7 +35,7 @@ training:
   device: cuda:1
   overwrite: true
   log_freq: 1
-  experiment_name: "VTNHCPF_GCN 256*2 gcn features 1024:2 cnn features vsl for one view rn 34(1024 attention)"
+  experiment_name: "VTNHCPF_GCN 256 gcn features 1024 cnn features vsl for one view rn 34(1024 + 256 attention)"
   # experiment_name: "vtn_att_poseflow autsl to vsl for one view rn18"
   model_dir: results/vtn_att_poseflow/vsl
   random_seed: 42

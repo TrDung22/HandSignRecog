@@ -94,8 +94,8 @@ class VTNHCPF_GCN(nn.Module):
         self.feature_extractor = FeatureExtractor(cnn, embed_size, freeze_layers)
         self.feature_extractor_gcn = FeatureExtractorGCN(gcn, freeze_layers)
 
-        num_attn_features = embed_size
-        num_gcn_features = int(embed_size/2)*2
+        num_attn_features = embed_size*2
+        num_gcn_features = int(embed_size/2)
         custom_attn_features = num_gcn_features
         self.norm = MMTensorNorm(-1)
         self.bottle_mm = nn.Linear(106 + num_attn_features + num_gcn_features, num_attn_features + custom_attn_features)
@@ -136,8 +136,8 @@ class VTNHCPF_GCN(nn.Module):
         zc = self.feature_extractor(rgb_clip)
         # Reshape back to extract features of both wrist crops as one feature vector.
         zc = zc.view(b, t, -1)
-        pool = nn.AdaptiveAvgPool1d(self.embed_size)
-        zc = pool(zc)
+        # pool = nn.AdaptiveAvgPool1d(self.embed_size)
+        # zc = pool(zc)
         
         zk = self.feature_extractor_gcn(keypoints)
 
@@ -225,7 +225,8 @@ class VTN3GCN(nn.Module):
         self.center = VTNHCPF_GCN(num_classes,num_heads,num_layers,embed_size,sequence_length,cnn,gcn,freeze_layers,dropout,**kwargs)
         self.left = VTNHCPF_GCN(num_classes,num_heads,num_layers,embed_size,sequence_length,cnn,gcn,freeze_layers,dropout,**kwargs)
         self.right = VTNHCPF_GCN(num_classes,num_heads,num_layers,embed_size,sequence_length,cnn,gcn,freeze_layers,dropout,**kwargs)
-        self.classifier = LinearClassifier(embed_size*2*3, num_classes, dropout)
+        num_attn_feature_custom = int(embed_size/2)
+        self.classifier = LinearClassifier(embed_size*2*3 + num_attn_feature_custom*3, num_classes, dropout)
         self.feature_extractor = None
         self.feature_extractor_gcn = None
     def add_backbone(self):

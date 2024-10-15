@@ -153,9 +153,9 @@ class FeatureExtractorGCN(nn.Module):
             raise ValueError(f"Unknown value for 'gcn': {gcn}")
         
         # checkpoint_path = "AAGCN/checkpoints/epoch=27-valid_accuracy=0.71-vsl199-modelWithoutStride.ckpt"
-        # checkpoint_path = "AAGCN/checkpoints/epoch=95-valid_accuracy=0.73-vsl199.ckpt"
+        checkpoint_path = "AAGCN/checkpoints/epoch=95-valid_accuracy=0.73-vsl199.ckpt"
         # checkpoint_path = "AAGCN/checkpoints/epoch=65-valid_accuracy=0.86-autsl-aagcn-fold=0.ckpt"
-        checkpoint_path = "AAGCN/checkpoints/epoch=15-valid_accuracy=0.70-vsl199-small-model.ckpt"
+        # checkpoint_path = "AAGCN/checkpoints/epoch=15-valid_accuracy=0.70-vsl199-small-model.ckpt"
 
         # Load the checkpoint
         with pl_legacy_patch():

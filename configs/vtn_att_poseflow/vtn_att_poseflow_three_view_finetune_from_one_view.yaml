@@ -1,6 +1,7 @@
 task: ISLR
 data:
-  model_name: VTNHCPF_Three_view
+  # model_name: VTNHCPF_Three_view
+  model_name: VTN3GCN
   base_url: /home/ibmelab/Documents/GG/VSLRecognition/vsl
   dataset_name: VN_SIGN
   temporal_stride: 2
@@ -18,20 +19,21 @@ data:
     NORM_STD_IMGNET: [0.229, 0.224, 0.225]
   SHOULDER_DIST_EPSILON: 1.2
   WRIST_DELTA: 0.15
-  label_folder: label/labelThreeView/labelThreeViewTesting
+  label_folder: label1-200/label/labelThreeView/labelThreeViewTesting
   data_type: labels
 training:
   label_smoothing: 0
   device: cuda:1
   overwrite: true
   log_freq: 1
-  experiment_name: "vtn_att_poseflow three view finetune from one view with testings labels"
+  experiment_name: "VTN3GCN finetune from VTNGCN 256 gcn 1024 cnn 1024+256 attn"
+  # experiment_name: "vtn_att_poseflow three view finetune from one view with testings labels"
   model_dir: results/vtn_att_poseflow/vsl
   random_seed: 42
   shuffle: True
   num_workers: 12
   prefetch_factor: 4
-  batch_size: 3 #to-debug!
+  batch_size: 15 #to-debug!
   total_epoch: 300 #to-debug!
   learning_rate: 0.00001
   save_checkpoints: true
@@ -46,11 +48,11 @@ training:
   top_k: 5
   print_stats: true
   pretrained: false
-  pretrained_mode: None
+  pretrained_model: None
   lr_step_size: 10
   gamma: 0.8
   num_accumulation_steps: 4
-  patience: 15
+  patience: 30
   verbose: true
   delta: 0
   is_early_stopping: true
@@ -69,5 +71,6 @@ model:
   num_layers: 4
   embed_size: 512
   cnn: rn34
+  gcn: AAGCN
   freeze_layers: 5 # free layers in cnn
   dropout: 0.2

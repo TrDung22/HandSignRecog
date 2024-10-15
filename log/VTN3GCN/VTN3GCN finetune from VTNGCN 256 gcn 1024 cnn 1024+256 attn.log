@@ -1,0 +1,17 @@
+2024-10-15 08:51:45,965 [INFO] Starting VTN3GCN/VTN3GCN finetune from VTNGCN 256 gcn 1024 cnn 1024+256 attn...
+
+
+2024-10-15 08:54:17,033 [INFO] Starting VTN3GCN/VTN3GCN finetune from VTNGCN 256 gcn 1024 cnn 1024+256 attn...
+
+
+2024-10-15 08:56:08,405 [INFO] Starting VTN3GCN/VTN3GCN finetune from VTNGCN 256 gcn 1024 cnn 1024+256 attn...
+
+
+2024-10-15 08:57:58,352 [INFO] Starting VTN3GCN/VTN3GCN finetune from VTNGCN 256 gcn 1024 cnn 1024+256 attn...
+
+
+2024-10-15 09:06:16,665 [INFO] Starting VTN3GCN/VTN3GCN finetune from VTNGCN 256 gcn 1024 cnn 1024+256 attn...
+
+
+2024-10-15 09:09:12,859 [INFO] Step[50/272]: training loss : 5.855743637084961 TRAIN  loss dict:  {'classification_loss': 5.855743637084961}
+2024-10-15 09:10:40,270 [INFO] Step[100/272]: training loss : 5.586089668273925 TRAIN  loss dict:  {'classification_loss': 5.586089668273925}

@@ -280,6 +280,10 @@ class VTN3GCNData(Dataset):
         n_poses = len(glob.glob(video_path.replace("videos","poses").replace('.mp4','/*')))
         total_frames = min(total_frames,n_poses)
         return total_frames,width,height
+    def transform_handflow(self, handflow):
+        # Convert to a PyTorch tensor and transpose to get [C, V]
+        handflow_tensor = torch.tensor(handflow, dtype=torch.float32).transpose(0, 1)
+        return handflow_tensor
     def read_one_view(self,name,selected_index,width,height):
        
         clip = []

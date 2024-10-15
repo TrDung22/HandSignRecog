@@ -121,6 +121,8 @@ def build_dataloader(cfg, split, is_train=True, model = None,labels = None):
 
     if cfg['data']['model_name'] == 'VTNHCPF_GCN':
         collate_func = vtn_gcn_collate_fn_
+    if cfg['data']['model_name'] == 'VTN3GCN':
+        collate_func = vtn_3_gcn_collate_fn_
     if cfg['data']['model_name'] == 'vtn_att_poseflow' or 'HandCrop' in cfg['data']['model_name'] or cfg['data']['model_name'] == 'VTNHCPF_OneView_Sim_Knowledge_Distilation_Inference':
         collate_func = vtn_pf_collate_fn_
     if cfg['data']['model_name'] == 'gcn_bert':

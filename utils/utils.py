@@ -1,6 +1,6 @@
 import torch.nn as nn
 import torch.optim as optim
-from modelling.vtn_att_poseflow_model import VTNHCPF,VTNHCPF_GCN,VTNHCPF_Three_View,VTNHCPF_OneView_Sim_Knowledge_Distilation,VTNHCPF_OneView_Sim_Knowledge_Distilation_Inference
+from modelling.vtn_att_poseflow_model import VTNHCPF,VTNHCPF_GCN,VTNHCPF_Three_View,VTN3GCN,VTNHCPF_OneView_Sim_Knowledge_Distilation,VTNHCPF_OneView_Sim_Knowledge_Distilation_Inference
 import torch
 from trainer.tools import MyCustomLoss,OLM_Loss
 from modelling.i3d import InceptionI3d,InceptionI3D_ThreeView,InceptionI3D_HandCrop,I3D_OneView_Sim_Knowledge_Distillation,I3D_OneView_Sim_Knowledge_Distillation_Inference,InceptionI3D_ThreeView_ShareWeights
@@ -145,6 +145,38 @@ def load_model(cfg):
                 model.load_state_dict(torch.load(cfg['training']['pretrained_model'],map_location='cpu'))
         
             print("Load VTNHCPF Three View")
+
+        elif cfg['data']['model_name'] == 'VTN3GCN':
+            model = VTN3GCN(**cfg['model'],sequence_length=cfg['data']['num_output_frames'])
+            if '.ckpt' in cfg['training']['pretrained_model']:
+                new_state_dict = {}
+                with pl_legacy_patch():
+                    for key, value in torch.load(cfg['training']['pretrained_model'],map_location='cpu')['state_dict'].items():
+                        new_state_dict[key.replace('model.','')] = value
+                model.center.reset_head(226) # AUTSL
+                model.left.reset_head(226) # AUTSL
+                model.right.reset_head(226) # AUTSL
+                # load autsl ckpt
+                model.center.load_state_dict(new_state_dict)
+                model.right.load_state_dict(new_state_dict)
+                model.left.load_state_dict(new_state_dict)
+                # add backbone
+                model.add_backbone()
+                # remove center, left and right backbone
+                model.remove_head_and_backbone()
+                model.freeze(layers = 0)
+                print("Load VTN3GCN")
+            elif "IMAGENET" == cfg['training']['pretrained_model']:
+                model.add_backbone()
+                model.remove_head_and_backbone()
+                print("Load VTN3GCN IMAGENET")
+            else:
+                model.add_backbone()
+                model.remove_head_and_backbone()
+                model.load_state_dict(torch.load(cfg['training']['pretrained_model'],map_location='cpu'))
+        
+            print("Load VTN3GCN")
+
         elif cfg['data']['model_name'] == 'InceptionI3d':
             model = InceptionI3d(**cfg['model'])
             if "autsl" in cfg['training']['pretrained_model'].split("/")[-1]:
@@ -277,7 +309,6 @@ def load_model(cfg):
                     continue
                 new_state_dict[key] = value
             model.load_state_dict(new_state_dict)
-
         elif cfg['data']['model_name'] == 'VTNHCPF_Three_view':
             model = VTNHCPF_Three_View(**cfg['model'],sequence_length=cfg['data']['num_output_frames'])
             state_dict = torch.load("checkpoints/vtn_att_poseflow/vtn_att_poseflow autsl to vsl for one view/best_checkpoints.pth",map_location='cpu')
@@ -288,6 +319,18 @@ def load_model(cfg):
             model.remove_head_and_backbone()
             model.freeze(layers = 0)
             print("Load VTNHCPF Three View")
+        elif cfg['data']['model_name'] == 'VTN3GCN':
+            model = VTN3GCN(**cfg['model'],sequence_length=cfg['data']['num_output_frames'])
+            ckpt_path = "checkpoints/VTNHCPF_GCN/VTNHCPF_GCN 256 gcn features 1024 cnn features vsl for one view rn 34(1024 + 256 attention)/best_checkpoints.pth"
+            state_dict = torch.load(ckpt_path,map_location='cpu')
+            print("Load VTN3GCN initialized weights: ",ckpt_path)
+            model.center.load_state_dict(state_dict,strict = True)
+            model.right.load_state_dict(state_dict,strict = True)
+            model.left.load_state_dict(state_dict,strict = True)
+            model.add_backbone()
+            model.remove_head_and_backbone()
+            model.freeze(layers = 0)
+            print("Load VTN3GCN")
         elif cfg['data']['model_name'] == 'InceptionI3d':
             model = InceptionI3d(**cfg['model'])
             new_dict = {}

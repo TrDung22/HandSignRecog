@@ -368,13 +368,13 @@ class AAGCN(pl.LightningModule):
         # x = self.fc(x)
 
         ### Option 1: [N,T,output gcn layer] ###
-        # x = x.mean(-1)  # Average over V; x shape: [N * M, C_new, T]
-        # c_new = x.size(1)  # c_new = 256
-        # T_new = x.size(2)
+        x = x.mean(-1)  # Average over V; x shape: [N * M, C_new, T]
+        c_new = x.size(1)  # c_new = 256
+        T_new = x.size(2)
 
-        # x = x.view(N, M, c_new, T_new)  # x shape: [N, M, c_new, T_new]
-        # x = x.permute(0, 3, 1, 2)       # x shape: [N, T_new, M, c_new]
-        # x = x.contiguous().view(N, T_new, -1)  # x shape: [N, T_new, M * c_new]
+        x = x.view(N, M, c_new, T_new)  # x shape: [N, M, c_new, T_new]
+        x = x.permute(0, 3, 1, 2)       # x shape: [N, T_new, M, c_new]
+        x = x.contiguous().view(N, T_new, -1)  # x shape: [N, T_new, M * c_new]
 
         ### Option 2: [N,T,46*output_gcn] ###
         # C_new = x.size(1)
@@ -384,20 +384,20 @@ class AAGCN(pl.LightningModule):
         # x = x.contiguous().view(N, T_new, -1)  # Flatten M, C_new, V into one dimension
 
         ### Option 3: [N,T,D] with custome D ###
-        C_new = x.size(1)
-        T_new = x.size(2)
-        V_new = 2  # Desired reduced spatial dimension
-        x = x.permute(0, 2, 1, 3)  # x shape: [N*M, T_new, C_new, V]
-        x = x.reshape(-1, C_new, V)  # x shape: [N*M*T_new, C_new, V]
+        # C_new = x.size(1)
+        # T_new = x.size(2)
+        # V_new = 2  # Desired reduced spatial dimension
+        # x = x.permute(0, 2, 1, 3)  # x shape: [N*M, T_new, C_new, V]
+        # x = x.reshape(-1, C_new, V)  # x shape: [N*M*T_new, C_new, V]
 
-        # Apply Adaptive Pooling over V
-        pool = nn.AdaptiveAvgPool1d(V_new)
-        x = pool(x)  # x shape: [N*M*T_new, C_new, V_new]
+        # # Apply Adaptive Pooling over V
+        # pool = nn.AdaptiveAvgPool1d(V_new)
+        # x = pool(x)  # x shape: [N*M*T_new, C_new, V_new]
 
-        # Flatten C_new and V_new
-        x = x.view(N, M, T_new, -1)  # x shape: [N, M, T_new, C_new * V_new]
-        x = x.permute(0, 2, 1, 3)    # x shape: [N, T_new, M, C_new * V_new]
-        x = x.contiguous().view(N, T_new, -1)  # x shape: [N, T_new, M * C_new * V_new]
+        # # Flatten C_new and V_new
+        # x = x.view(N, M, T_new, -1)  # x shape: [N, M, T_new, C_new * V_new]
+        # x = x.permute(0, 2, 1, 3)    # x shape: [N, T_new, M, C_new * V_new]
+        # x = x.contiguous().view(N, T_new, -1)  # x shape: [N, T_new, M * C_new * V_new]
 
         return x
 
