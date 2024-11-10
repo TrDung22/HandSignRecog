@@ -13,9 +13,7 @@ from dataset.videoLoader import get_selected_indexs,pad_index
 import cv2
 import torchvision
 from utils.video_augmentation import *
-from dataset.utils import crop_hand, crop_hand_with_keypoints, crop_hand_with_keypoints_and_lines, crop_hand_with_keypoints_and_lines_v2
-
-
+from dataset.utils import crop_hand
 class VTN_ATT_PF_Dataset(Dataset):
     def __init__(self, base_url,split,dataset_cfg,train_labels = None,**kwargs):
         if train_labels is None:
@@ -104,52 +102,37 @@ class VTN_ATT_PF_Dataset(Dataset):
         missing_wrists_left = []
         missing_wrists_right = []
 
-        for frame,frame_index in zip(frames,selected_index):
-            if self.data_cfg['crop_two_hand'] or self.data_cfg['crop_two_hand_with_keypoints']:
-                
-                kp_path = os.path.join(self.base_url,'poses',name.replace(".mp4",""),
-                                    name.replace(".mp4","") + '_{:06d}_'.format(frame_index) + 'keypoints.json')
-                # load keypoints
-                with open(kp_path, 'r') as keypoints_file:
-                    value = json.loads(keypoints_file.read())
-                    
-                    crop_keypoints = np.array(value['pose_threshold_02']) # 26,3
-                    x = 320*crop_keypoints[:,0]/width
-                    y = 256*crop_keypoints[:,1]/height
-                   
-                crop_keypoints = np.stack((x, y), axis=0)
+        for frame, frame_index in zip(frames, selected_index):
+            if self.data_cfg['crop_two_hand']:
+                n = 0
+                found = False
+                while frame_index - n >= 0:
+                    current_index = frame_index - n
+                    kp_path = os.path.join(
+                        self.base_url, 'poses', name.replace(".mp4", ""),
+                        f"{name.replace('.mp4', '')}_{current_index:06d}_keypoints.json"
+                    )
+                    if os.path.exists(kp_path):
+                        # load keypoints
+                        with open(kp_path, 'r') as keypoints_file:
+                            value = json.load(keypoints_file)
+                            crop_keypoints = np.array(value['pose_threshold_02'])  # 26,3
+                            x = 320 * crop_keypoints[:, 0] / width
+                            y = 256 * crop_keypoints[:, 1] / height
+                            crop_keypoints = np.stack((x, y), axis=0)
+                        found = True
+                        break
+                    else:
+                        n += 1
+                if not found:
+                    raise FileNotFoundError(
+                        f"Could not find a keypoints file for frame_index {frame_index} or any prior frames."
+                    )
 
-            if self.data_cfg['crop_two_hand_with_keypoints']:
-                kp_path = os.path.join(self.base_url, 'hand_poses', name.replace(".mp4", ""),
-                                       name.replace(".mp4", "") + '_{:06d}_'.format(frame_index) + 'keypoints.json')
-                # load keypoints
-                with open(kp_path, 'r') as keypoints_file:
-                    value = json.loads(keypoints_file.read())
-
-                    hand_keypoints = np.array(value['pose_threshold_02'])  # 26,3
-                    x = 320 * hand_keypoints[:, 0] / width
-                    y = 256 * hand_keypoints[:, 1] / height
-
-                hand_keypoints = np.stack((x, y), axis=1)
-           
             crops = None
             if self.data_cfg['crop_two_hand']:
                 crops,missing_wrists_left,missing_wrists_right = crop_hand(frame,crop_keypoints,self.data_cfg['WRIST_DELTA'],self.data_cfg['SHOULDER_DIST_EPSILON'],
                                                                        self.transform,len(clip),missing_wrists_left,missing_wrists_right)
-            elif self.data_cfg['crop_two_hand_with_keypoints'] and self.data_cfg['with_lines']:
-                crops, missing_wrists_left, missing_wrists_right = crop_hand_with_keypoints_and_lines_v2(frame, crop_keypoints,
-                                                                             hand_keypoints,
-                                                                             self.data_cfg['WRIST_DELTA'],
-                                                                             self.data_cfg['SHOULDER_DIST_EPSILON'],
-                                                                             self.transform, len(clip),
-                                                                             missing_wrists_left, missing_wrists_right)
-            elif self.data_cfg['crop_two_hand_with_keypoints']:
-                crops, missing_wrists_left, missing_wrists_right = crop_hand_with_keypoints(frame, crop_keypoints,
-                                                                             hand_keypoints,
-                                                                             self.data_cfg['WRIST_DELTA'],
-                                                                             self.data_cfg['SHOULDER_DIST_EPSILON'],
-                                                                             self.transform, len(clip),
-                                                                             missing_wrists_left, missing_wrists_right)
             else:
                 crops = self.transform(frame)
             clip.append(crops)
@@ -161,7 +144,6 @@ class VTN_ATT_PF_Dataset(Dataset):
                 full_path = os.path.join(self.base_url,'poseflow',name.replace(".mp4",""),
                                         'flow_{:05d}.npy'.format(frame_index_poseflow))
                 while not os.path.isfile(full_path):  # WORKAROUND FOR MISSING FILES!!!
-                    print("Missing File",full_path)
                     frame_index_poseflow -= 1
                     full_path = os.path.join(self.base_url,'poseflow',name.replace(".mp4",""),
                                         'flow_{:05d}.npy'.format(frame_index_poseflow))
@@ -228,10 +210,10 @@ class VTN_GCN_Dataset(Dataset):
         self.data_name = dataset_cfg['dataset_name']
         self.transform = self.build_transform(split)
     
-    def transform_handflow(self, handflow):
+    def transform_handkp(self, handkp):
         # Convert to a PyTorch tensor and transpose to get [C, V]
-        handflow_tensor = torch.tensor(handflow, dtype=torch.float32).transpose(0, 1)
-        return handflow_tensor
+        handkp_tensor = torch.tensor(handkp, dtype=torch.float32).transpose(0, 1)
+        return handkp_tensor
         
     def build_transform(self,split):
         if split == 'train':
@@ -291,56 +273,41 @@ class VTN_GCN_Dataset(Dataset):
 
         poseflow_clip = []
         clip = []
-        handflow_clip = []
+        handkp_clip = []
         missing_wrists_left = []
         missing_wrists_right = []
 
-        for frame,frame_index in zip(frames,selected_index):
-            if self.data_cfg['crop_two_hand'] or self.data_cfg['crop_two_hand_with_keypoints']:
-                
-                kp_path = os.path.join(self.base_url,'poses',name.replace(".mp4",""),
-                                    name.replace(".mp4","") + '_{:06d}_'.format(frame_index) + 'keypoints.json')
-                # load keypoints
-                with open(kp_path, 'r') as keypoints_file:
-                    value = json.loads(keypoints_file.read())
-                    
-                    crop_keypoints = np.array(value['pose_threshold_02']) # 26,3
-                    x = 320*crop_keypoints[:,0]/width
-                    y = 256*crop_keypoints[:,1]/height
-                   
-                crop_keypoints = np.stack((x, y), axis=0)
-
-            if self.data_cfg['crop_two_hand_with_keypoints']:
-                kp_path = os.path.join(self.base_url, 'hand_poses', name.replace(".mp4", ""),
-                                       name.replace(".mp4", "") + '_{:06d}_'.format(frame_index) + 'keypoints.json')
-                # load keypoints
-                with open(kp_path, 'r') as keypoints_file:
-                    value = json.loads(keypoints_file.read())
-
-                    hand_keypoints = np.array(value['pose_threshold_02'])  # 26,3
-                    x = 320 * hand_keypoints[:, 0] / width
-                    y = 256 * hand_keypoints[:, 1] / height
-
-                hand_keypoints = np.stack((x, y), axis=1)
+        for frame, frame_index in zip(frames, selected_index):
+            if self.data_cfg['crop_two_hand']:
+                n = 0
+                found = False
+                while frame_index - n >= 0:
+                    current_index = frame_index - n
+                    kp_path = os.path.join(
+                        self.base_url, 'poses', name.replace(".mp4", ""),
+                        f"{name.replace('.mp4', '')}_{current_index:06d}_keypoints.json"
+                    )
+                    if os.path.exists(kp_path):
+                        # load keypoints
+                        with open(kp_path, 'r') as keypoints_file:
+                            value = json.load(keypoints_file)
+                            crop_keypoints = np.array(value['pose_threshold_02'])  # 26,3
+                            x = 320 * crop_keypoints[:, 0] / width
+                            y = 256 * crop_keypoints[:, 1] / height
+                            crop_keypoints = np.stack((x, y), axis=0)
+                        found = True
+                        break
+                    else:
+                        n += 1
+                if not found:
+                    raise FileNotFoundError(
+                        f"Could not find a keypoints file for frame_index {frame_index} or any prior frames."
+                    )
            
             crops = None
             if self.data_cfg['crop_two_hand']:
                 crops,missing_wrists_left,missing_wrists_right = crop_hand(frame,crop_keypoints,self.data_cfg['WRIST_DELTA'],self.data_cfg['SHOULDER_DIST_EPSILON'],
                                                                        self.transform,len(clip),missing_wrists_left,missing_wrists_right)
-            elif self.data_cfg['crop_two_hand_with_keypoints'] and self.data_cfg['with_lines']:
-                crops, missing_wrists_left, missing_wrists_right = crop_hand_with_keypoints_and_lines_v2(frame, crop_keypoints,
-                                                                             hand_keypoints,
-                                                                             self.data_cfg['WRIST_DELTA'],
-                                                                             self.data_cfg['SHOULDER_DIST_EPSILON'],
-                                                                             self.transform, len(clip),
-                                                                             missing_wrists_left, missing_wrists_right)
-            elif self.data_cfg['crop_two_hand_with_keypoints']:
-                crops, missing_wrists_left, missing_wrists_right = crop_hand_with_keypoints(frame, crop_keypoints,
-                                                                             hand_keypoints,
-                                                                             self.data_cfg['WRIST_DELTA'],
-                                                                             self.data_cfg['SHOULDER_DIST_EPSILON'],
-                                                                             self.transform, len(clip),
-                                                                             missing_wrists_left, missing_wrists_right)
             else:
                 crops = self.transform(frame)
             clip.append(crops)
@@ -352,7 +319,6 @@ class VTN_GCN_Dataset(Dataset):
                 full_path = os.path.join(self.base_url,'poseflow',name.replace(".mp4",""),
                                         'flow_{:05d}.npy'.format(frame_index_poseflow))
                 while not os.path.isfile(full_path):  # WORKAROUND FOR MISSING FILES!!!
-                    print("Missing File",full_path)
                     frame_index_poseflow -= 1
                     full_path = os.path.join(self.base_url,'poseflow',name.replace(".mp4",""),
                                         'flow_{:05d}.npy'.format(frame_index_poseflow))
@@ -373,39 +339,35 @@ class VTN_GCN_Dataset(Dataset):
             poseflow = pose_transform(poseflow).view(-1)
             poseflow_clip.append(poseflow)
 
-            frame_index_handflow = frame_index
-            full_path = os.path.join(self.base_url, 'gcn_keypoints_v2', name.replace(".mp4", ""),
-                                     f'hand_flow_{frame_index_handflow:05d}.npy')
+            frame_index_handkp = frame_index
+            full_path = os.path.join(self.base_url, 'hand_keypoints', name.replace(".mp4", ""),
+                                     f'hand_kp_{frame_index_handkp:05d}.npy')
 
             # Handle missing files by backtracking to previous frames
-            while not os.path.isfile(full_path) and frame_index_handflow > 0:
-                print(f"Missing File: {full_path}")
-                frame_index_handflow -= 1
-                full_path = os.path.join(self.base_url, 'gcn_keypoints_v2', name.replace(".mp4", ""),
-                                         f'hand_flow_{frame_index_handflow:05d}.npy')
+            while not os.path.isfile(full_path) and frame_index_handkp > 0:
+                frame_index_handkp -= 1
+                full_path = os.path.join(self.base_url, 'hand_keypoints', name.replace(".mp4", ""),
+                                         f'hand_kp_{frame_index_handkp:05d}.npy')
 
             if os.path.isfile(full_path):
                 # Load the keypoints data
                 value = np.load(full_path)
-                handflow_frame = value
-                # Normalize the angle between -1 and 1 from -pi to pi
-                handflow_frame[:, 0] /= math.pi
-                # Magnitude is already normalized from preprocessing
+                handkp_frame = value
             else:
                 # If no handflow data is found, initialize with zeros
-                handflow_frame = np.zeros((135, 2))
+                handkp_frame = np.zeros((46, 2))
 
             # Apply transformations to handflow data
-            handflow_frame = self.transform_handflow(handflow_frame)
-            handflow_clip.append(handflow_frame)
+            handkp_frame = self.transform_handkp(handkp_frame)
+            handkp_clip.append(handkp_frame)
 
         clip = torch.stack(clip,dim = 0)
         poseflow = torch.stack(poseflow_clip, dim=0)
         # Stack handflow frames into a tensor along the time dimension
-        handflow = torch.stack(handflow_clip, dim=1)  # shape: [C, T, V]
+        handkp = torch.stack(handkp_clip, dim=1)  # shape: [C, T, V]
         # Add the M dimension (number of persons), which is 1 in this case
-        handflow = handflow.unsqueeze(-1)  # shape: [C, T, V, M]
-        return clip,poseflow,handflow
+        handkp = handkp.unsqueeze(-1)  # shape: [C, T, V, M]
+        return clip,poseflow,handkp
 
 
     def __getitem__(self, idx):
@@ -414,9 +376,9 @@ class VTN_GCN_Dataset(Dataset):
         data = self.train_labels.iloc[idx].values
         name,label = data[0],data[1]
 
-        clip,poseflow,handflow = self.read_videos(name)
+        clip,poseflow,handkp = self.read_videos(name)
         
-        return clip,poseflow,handflow,torch.tensor(label)
+        return clip,poseflow,handkp,torch.tensor(label)
 
     
     def __len__(self):

@@ -1,10 +1,12 @@
 task: ISLR
 data:
-  model_name: VTNHCPF_Three_view
+  # model_name: VTNHCPF_Three_view
+  model_name: VTN3GCN
+  # model_name: VTN3GCN_v2
   base_url: /home/ibmelab/Documents/GG/VSLRecognition/vsl
   dataset_name: VN_SIGN
   temporal_stride: 2
-  num_output_frames: 16
+  num_output_frames: 28
   crop_two_hand: true
   transform_cfg:
     index_setting:
@@ -18,15 +20,15 @@ data:
     NORM_STD_IMGNET: [0.229, 0.224, 0.225]
   SHOULDER_DIST_EPSILON: 1.2
   WRIST_DELTA: 0.15
-  label_folder: label/labelThreeView/labelThreeViewTesting
+  label_folder: label1-200/label/labelThreeView/labelThreeViewTesting
   data_type: labels
 training:
   test: True
   label_smoothing: 0
-  device: cuda:1
+  device: cuda:0
   overwrite: true
   log_freq: 1
-  experiment_name: "vtn_att_poseflow three view finetune from one view (Testing)"
+  experiment_name: "VTN3GCN finetune from one view 56 frames seperate CNN(Testing)"
   model_dir: results/vtn_att_poseflow/vsl
   random_seed: 42
   shuffle: True
@@ -47,7 +49,7 @@ training:
   top_k: 5
   print_stats: true
   pretrained: true
-  pretrained_model: checkpoints/VTNHCPF_Three_view/vtn_att_poseflow three view finetune from one view with testings labels/best_checkpoints.pth
+  pretrained_model: checkpoints/VTN3GCN/VTN3GCN finetune from one view 56 frames seperate CNN/best_checkpoints.pth
   lr_step_size: 10
   gamma: 0.8
   num_accumulation_steps: 4
@@ -70,5 +72,6 @@ model:
   num_layers: 4
   embed_size: 512
   cnn: rn34
+  gcn: AAGCN
   freeze_layers: 5 # free layers in cnn
   dropout: 0.1

@@ -2,10 +2,11 @@ task: ISLR
 data:
   # model_name: VTNHCPF_Three_view
   model_name: VTN3GCN
+  # model_name: VTN3GCN_v2
   base_url: /home/ibmelab/Documents/GG/VSLRecognition/vsl
   dataset_name: VN_SIGN
   temporal_stride: 2
-  num_output_frames: 16
+  num_output_frames: 28
   crop_two_hand: true
   transform_cfg:
     index_setting:
@@ -21,19 +22,20 @@ data:
   WRIST_DELTA: 0.15
   label_folder: label1-200/label/labelThreeView/labelThreeViewTesting
   data_type: labels
+  center_kp: False
 training:
   label_smoothing: 0
-  device: cuda:1
+  device: cuda:0
   overwrite: true
   log_freq: 1
-  experiment_name: "VTN3GCN finetune from VTNGCN 256 gcn 1024 cnn 1024+256 attn"
+  experiment_name: "VTN3GCN finetune from one view 56 frames seperate CNN"
   # experiment_name: "vtn_att_poseflow three view finetune from one view with testings labels"
   model_dir: results/vtn_att_poseflow/vsl
   random_seed: 42
   shuffle: True
   num_workers: 12
   prefetch_factor: 4
-  batch_size: 15 #to-debug!
+  batch_size: 3 #to-debug!
   total_epoch: 300 #to-debug!
   learning_rate: 0.00001
   save_checkpoints: true

@@ -85,7 +85,7 @@ def gen_pose(base_url,file_name,pose_detector):
 
 
 if __name__ == "__main__":
-    full_data = pd.read_csv("/home/ibmelab/Documents/GG/VSLRecognition/vsl/label1-400/all_1_400_ord1.csv")
+    full_data = pd.read_csv("/home/ibmelab/Documents/GG/VSLRecognition/vsl/label1-200/vsl_200_all_without_29_ord1.csv")
     print(full_data.columns)
     pose_detector = MMPoseInferencer( "rtmpose-m_8xb512-700e_body8-halpe26-256x192")
 

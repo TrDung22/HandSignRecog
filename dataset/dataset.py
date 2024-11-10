@@ -48,10 +48,10 @@ def build_image_transform(dataset_cfg,split,model = None):
 def build_dataset(dataset_cfg, split,model = None,**kwargs):
     dataset = None
 
-    if dataset_cfg['model_name'] == 'VTNHCPF_GCN':
+    if dataset_cfg['model_name'] == 'VTNGCN' or dataset_cfg['model_name'] == 'VTNGCN_Combine':
         dataset = VTN_GCN_Dataset(dataset_cfg['base_url'],split,dataset_cfg,**kwargs)
 
-    if dataset_cfg['model_name'] == 'VTN3GCN':
+    if dataset_cfg['model_name'] == 'VTN3GCN' or dataset_cfg['model_name'] == 'VTN3GCN_v2':
         dataset = VTN3GCNData(dataset_cfg['base_url'],split,dataset_cfg,**kwargs)
 
     if dataset_cfg['model_name'] == "vtn_att_poseflow" or 'HandCrop' in dataset_cfg['model_name'] or dataset_cfg['model_name'] == 'VTNHCPF_OneView_Sim_Knowledge_Distilation_Inference':

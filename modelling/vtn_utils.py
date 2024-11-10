@@ -166,19 +166,16 @@ class FeatureExtractorGCN(nn.Module):
         del self.aagcn.fc
         del self.aagcn.loss
         del self.aagcn.metric
-        self.aagcn.load_state_dict(state_dict, strict=False)
+        # self.aagcn.load_state_dict(state_dict, strict=False)
 
-        print("Load pretrained GCN: ", checkpoint_path)
+        # print("Load pretrained GCN: ", checkpoint_path)
         
-        # for idx, child in enumerate(self.aagcn.children()):
-        #     if idx < freeze_layers:
-        #         for param in child.parameters():
-        #             param.requires_grad = False
-        #     else:
-        #         break
-
-        for param in self.aagcn.parameters():
-            param.requires_grad = False
+        for idx, child in enumerate(self.aagcn.children()):
+            if idx < freeze_layers:
+                for param in child.parameters():
+                    param.requires_grad = False
+            else:
+                break
 
     def forward(self, keypoints):
         """Extract features from the RGB images."""

@@ -1,7 +1,6 @@
 task: ISLR
 data:
-  # model_name: vtn_att_poseflow
-  model_name: VTNHCPF_GCN
+  model_name: vtn_att_poseflow
   base_url: /home/ibmelab/Documents/GG/VSLRecognition/vsl
   # base_url: /home/ibmelab/Documents/GG/VSLRecognition/AUTSL
   dataset_name: VN_SIGN
@@ -9,7 +8,6 @@ data:
   temporal_stride: 2
   num_output_frames: 16
   crop_two_hand: true
-  crop_two_hand_with_keypoints: false
   transform_cfg:
     index_setting:
       - segment #train_p
@@ -23,7 +21,8 @@ data:
   SHOULDER_DIST_EPSILON: 1.2
   WRIST_DELTA: 0.15
   label_folder: label1-200/label/labelCenterWithOrd1/labelCenterWithout29_ord1_4316_792_791
-  # label_folder: label
+  # label_folder: label1-200/label/labelRight
+  # label_folder: label1-200/label/labelLeft
   data_type: labels
 training:
   test: true
@@ -32,16 +31,16 @@ training:
     cts_x: 1
     cosine_x: 1
   label_smoothing: 0
-  device: cuda:1
+  device: cuda:0
   overwrite: true
   log_freq: 1
-  experiment_name: "VTNHCPF_GCN 128 gcn features 1024 cnn features vsl for one view rn 34(1024 + 128 attention zk+zc+pose)(Testing)"
+  experiment_name: "vtn_att_poseflow autsl to vsl for one view left(Testing center-view)"
   model_dir: results/vtn_att_poseflow/vsl
   random_seed: 42
   shuffle: True
   num_workers: 12
   prefetch_factor: 4
-  batch_size: 30 #to-debug!
+  batch_size: 3 #to-debug!
   total_epoch: 300 #to-debug!
   learning_rate: 0.0001
   save_checkpoints: true
@@ -56,7 +55,7 @@ training:
   top_k: 5
   print_stats: true
   pretrained: true
-  pretrained_model: checkpoints/VTNHCPF_GCN/VTNHCPF_GCN 128 gcn features 1024 cnn features vsl for one view rn 34(1024 + 128 attention zk+zc+pose)/best_checkpoints.pth
+  pretrained_model: checkpoints/vtn_att_poseflow/vtn_att_poseflow autsl to vsl for one view left/best_checkpoints.pth
   lr_step_size: 10
   gamma: 0.8
   num_accumulation_steps: 4
@@ -79,6 +78,5 @@ model:
   num_layers: 4
   embed_size: 512
   cnn: rn34
-  gcn: AAGCN
   freeze_layers: 5 # free layers in cnn
   dropout: 0.1

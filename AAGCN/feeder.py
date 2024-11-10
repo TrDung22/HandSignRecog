@@ -72,7 +72,7 @@ class FeederCustomV2(Dataset):
         data_type (str): Type of data, e.g., 'keypoints'.
         train_labels (pd.DataFrame, optional): DataFrame of labels for custom splits.
     """
-    def __init__(self, base_url, split, num_output_frames=16, label_folder='label1-200/label/labelCenterWithOrd1/labelCenterWithout29_ord1_4316_792_791', data_type='labels', train_labels=None):
+    def __init__(self, base_url, split, num_output_frames=80, label_folder='label1-200/label/labelCenterWithOrd1/labelCenterWithout29_ord1_4316_792_791', data_type='labels', train_labels=None):
         super(FeederCustomV2, self).__init__()
         if train_labels is None:
             # Load labels from the CSV file
@@ -111,7 +111,6 @@ class FeederCustomV2(Dataset):
         # Read keypoints data (handflow)
         handflow = self.read_handflow(name)
         
-        # Return the keypoints data and label
         return handflow, torch.tensor(label)
     
     def read_handflow(self, name):
@@ -124,26 +123,22 @@ class FeederCustomV2(Dataset):
         for frame_index in range(num_frames):
             # Construct the path to the keypoints file
             frame_index_handflow = frame_index
-            full_path = os.path.join(self.base_url, 'gcn_keypoints_v2', name.replace(".mp4", ""),
-                                     f'hand_flow_{frame_index_handflow:05d}.npy')
+            full_path = os.path.join(self.base_url, 'hand_keypoints', name.replace(".mp4", ""),
+                                     f'hand_kp_{frame_index_handflow:05d}.npy')
 
             # Handle missing files by backtracking to previous frames
             while not os.path.isfile(full_path) and frame_index_handflow > 0:
-                print(f"Missing File: {full_path}")
                 frame_index_handflow -= 1
-                full_path = os.path.join(self.base_url, 'gcn_keypoints_v2', name.replace(".mp4", ""),
-                                         f'hand_flow_{frame_index_handflow:05d}.npy')
+                full_path = os.path.join(self.base_url, 'hand_keypoints', name.replace(".mp4", ""),
+                                         f'hand_kp_{frame_index_handflow:05d}.npy')
 
             if os.path.isfile(full_path):
                 # Load the keypoints data
                 value = np.load(full_path)
                 handflow_frame = value
-                # Normalize the angle between -1 and 1 from -pi to pi
-                handflow_frame[:, 0] /= math.pi
-                # Magnitude is already normalized from preprocessing
             else:
                 # If no handflow data is found, initialize with zeros
-                handflow_frame = np.zeros((135, 2))
+                handflow_frame = np.zeros((46, 2))
 
             # Apply transformations to handflow data
             handflow_frame = self.transform_handflow(handflow_frame)

@@ -288,7 +288,7 @@ class VTN3GCNData(Dataset):
        
         clip = []
         poseflow_clip = []
-        handflow_clip = []
+        handkp_clip = []
         missing_wrists_left = []
         missing_wrists_right = []
        
@@ -327,7 +327,6 @@ class VTN3GCNData(Dataset):
                 full_path = os.path.join(self.base_url,'poseflow',name.replace(".mp4",""),
                                         'flow_{:05d}.npy'.format(frame_index_poseflow))
                 while not os.path.isfile(full_path):  # WORKAROUND FOR MISSING FILES!!!
-                    print("Missing File",full_path)
                     frame_index_poseflow -= 1
                     full_path = os.path.join(self.base_url,'poseflow',name.replace(".mp4",""),
                                         'flow_{:05d}.npy'.format(frame_index_poseflow))
@@ -348,39 +347,35 @@ class VTN3GCNData(Dataset):
             poseflow = pose_transform(poseflow).view(-1)
             poseflow_clip.append(poseflow)
 
-            frame_index_handflow = frame_index
-            full_path = os.path.join(self.base_url, 'gcn_keypoints_v2', name.replace(".mp4", ""),
-                                     f'hand_flow_{frame_index_handflow:05d}.npy')
+            frame_index_handkp = frame_index
+            full_path = os.path.join(self.base_url, 'hand_keypoints', name.replace(".mp4", ""),
+                                     f'hand_kp_{frame_index_handkp:05d}.npy')
 
             # Handle missing files by backtracking to previous frames
-            while not os.path.isfile(full_path) and frame_index_handflow > 0:
-                print(f"Missing File: {full_path}")
-                frame_index_handflow -= 1
-                full_path = os.path.join(self.base_url, 'gcn_keypoints_v2', name.replace(".mp4", ""),
-                                         f'hand_flow_{frame_index_handflow:05d}.npy')
+            while not os.path.isfile(full_path) and frame_index_handkp > 0:
+                frame_index_handkp -= 1
+                full_path = os.path.join(self.base_url, 'hand_keypoints', name.replace(".mp4", ""),
+                                         f'hand_kp_{frame_index_handkp:05d}.npy')
 
             if os.path.isfile(full_path):
                 # Load the keypoints data
                 value = np.load(full_path)
-                handflow_frame = value
-                # Normalize the angle between -1 and 1 from -pi to pi
-                handflow_frame[:, 0] /= math.pi
-                # Magnitude is already normalized from preprocessing
+                handkp_frame = value
             else:
                 # If no handflow data is found, initialize with zeros
-                handflow_frame = np.zeros((135, 2))
+                handkp_frame = np.zeros((46, 2))
 
             # Apply transformations to handflow data
-            handflow_frame = self.transform_handflow(handflow_frame)
-            handflow_clip.append(handflow_frame)
+            handkp_frame = self.transform_handflow(handkp_frame)
+            handkp_clip.append(handkp_frame)
 
         clip = torch.stack(clip,dim = 0)
         poseflow = torch.stack(poseflow_clip, dim=0)
         # Stack handflow frames into a tensor along the time dimension
-        handflow = torch.stack(handflow_clip, dim=1)  # shape: [C, T, V]
+        handkp = torch.stack(handkp_clip, dim=1)  # shape: [C, T, V]
         # Add the M dimension (number of persons), which is 1 in this case
-        handflow = handflow.unsqueeze(-1)  # shape: [C, T, V, M]
-        return clip,poseflow,handflow
+        handkp = handkp.unsqueeze(-1)  # shape: [C, T, V, M]
+        return clip,poseflow,handkp
 
     def read_videos(self,center,left,right):
         index_setting = self.data_cfg['transform_cfg'].get('index_setting', ['consecutive','pad','central','pad'])
@@ -396,7 +391,6 @@ class VTN3GCNData(Dataset):
             selected_index, pad = get_selected_indexs(min_vlen - 3,self.data_cfg['num_output_frames'],self.is_train,index_setting,temporal_stride=self.data_cfg['temporal_stride'])
             
             if pad is not None:
-                print("Vlen",center,left,right)
                 selected_index  = pad_index(selected_index,pad).tolist()
         
             center_video,center_pf,center_kp = self.read_one_view(center,selected_index,width=c_width,height=c_height)
@@ -408,7 +402,6 @@ class VTN3GCNData(Dataset):
             selected_index, pad = get_selected_indexs(vlen1 - 3,self.data_cfg['num_output_frames'],self.is_train,index_setting,temporal_stride=self.data_cfg['temporal_stride'])
             
             if pad is not None:
-                print("Vlen",center)
                 selected_index  = pad_index(selected_index,pad).tolist()
 
             center_video,center_pf,center_kp = self.read_one_view(center,selected_index,width=c_width,height=c_height)
@@ -416,7 +409,6 @@ class VTN3GCNData(Dataset):
             selected_index, pad = get_selected_indexs(vlen2 - 3,self.data_cfg['num_output_frames'],self.is_train,index_setting,temporal_stride=self.data_cfg['temporal_stride'])
             
             if pad is not None:
-                print("Vlen",left)
                 selected_index  = pad_index(selected_index,pad).tolist()
             
             
@@ -425,7 +417,6 @@ class VTN3GCNData(Dataset):
             selected_index, pad = get_selected_indexs(vlen3-3,self.data_cfg['num_output_frames'],self.is_train,index_setting,temporal_stride=self.data_cfg['temporal_stride'])
             
             if pad is not None:
-                print("Vlen",right)
                 selected_index  = pad_index(selected_index,pad).tolist()
 
             right_video,right_pf,right_kp = self.read_one_view(right,selected_index,width=r_width,height=r_height)
@@ -436,15 +427,42 @@ class VTN3GCNData(Dataset):
         # return 1
 
 
+    # def __getitem__(self, idx):
+    #     self.transform.randomize_parameters()
+       
+    #     center,left,right,label = self.train_labels.iloc[idx].values
+       
+    #     center_video,center_pf,center_kp,left_video,left_pf,left_kp,right_video,right_pf,right_kp = self.read_videos(center,left,right)
+        
+    #     return center_video,center_pf,center_kp,left_video,left_pf,left_kp,right_video,right_pf,right_kp,torch.tensor(label)
+
     def __getitem__(self, idx):
         self.transform.randomize_parameters()
-       
-        center,left,right,label = self.train_labels.iloc[idx].values
-       
-        center_video,center_pf,center_kp,left_video,left_pf,left_kp,right_video,right_pf,right_kp = self.read_videos(center,left,right)
-        
-        return center_video,center_pf,center_kp,left_video,left_pf,left_kp,right_video,right_pf,right_kp,torch.tensor(label)
-     
+
+        center, left, right, label = self.train_labels.iloc[idx].values
+        center_video, center_pf, center_kp, left_video, left_pf, left_kp, right_video, right_pf, right_kp = self.read_videos(center, left, right)
+
+        # Chọn một số ngẫu nhiên từ 1 đến 1000
+        random_number = np.random.randint(1, 1001)
+
+        # Kiểm tra điều kiện với missing_rate
+        if not (random_number / 1000 > self.data_cfg.get('center_missing_rates', 0)):
+            center_video[:] = 0
+            center_pf[:] = 0
+            center_kp[:, :, :] = 0
+
+        if not (random_number / 1000 > self.data_cfg.get('left_missing_rates', 0)):
+            left_video[:] = 0
+            left_pf[:] = 0
+            left_kp[:, :, :] = 0
+            
+        if not (random_number / 1000 > self.data_cfg.get('right_missing_rates', 0)):
+            right_video[:] = 0
+            right_pf[:] = 0
+            right_kp[:, :, :] = 0
+
+        return center_video, center_pf, center_kp, left_video, left_pf, left_kp, right_video, right_pf, right_kp, torch.tensor(label)
+
     
     def __len__(self):
         return len(self.train_labels)

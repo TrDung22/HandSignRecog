@@ -85,7 +85,6 @@ def vtn_3_gcn_collate_fn_(batch):
     left_video = torch.stack([s[3] for s in batch],dim = 0)
     right_video = torch.stack([s[6] for s in batch],dim = 0)
     
-
     center_pf = torch.stack([s[1] for s in batch],dim = 0)
     left_pf = torch.stack([s[4] for s in batch],dim = 0)
     right_pf = torch.stack([s[7] for s in batch],dim = 0)
@@ -119,9 +118,9 @@ def distilation_collate_fn_(batch):
 def build_dataloader(cfg, split, is_train=True, model = None,labels = None):
     dataset = build_dataset(cfg['data'], split,model,train_labels = labels)
 
-    if cfg['data']['model_name'] == 'VTNHCPF_GCN':
+    if cfg['data']['model_name'] == 'VTNGCN' or cfg['data']['model_name'] == 'VTNGCN_Combine':
         collate_func = vtn_gcn_collate_fn_
-    if cfg['data']['model_name'] == 'VTN3GCN':
+    if cfg['data']['model_name'] == 'VTN3GCN' or cfg['data']['model_name'] == 'VTN3GCN_v2':
         collate_func = vtn_3_gcn_collate_fn_
     if cfg['data']['model_name'] == 'vtn_att_poseflow' or 'HandCrop' in cfg['data']['model_name'] or cfg['data']['model_name'] == 'VTNHCPF_OneView_Sim_Knowledge_Distilation_Inference':
         collate_func = vtn_pf_collate_fn_

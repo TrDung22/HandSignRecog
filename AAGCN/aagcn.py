@@ -318,7 +318,7 @@ class AAGCN(pl.LightningModule):
         # self.l12 = TCN_GCN_unit(512, 512, A, adaptive=adaptive, attention=attention)
         # self.l13 = TCN_GCN_unit(512, 512, A, adaptive=adaptive, attention=attention)
 
-        self.fc = nn.Linear(128, num_class)
+        self.fc = nn.Linear(256, num_class)
         nn.init.normal_(self.fc.weight, 0, math.sqrt(2. / num_class))
         bn_init(self.data_bn, 1)
         if drop_out:
@@ -375,92 +375,7 @@ class AAGCN(pl.LightningModule):
         x = x.view(N, M, c_new, T_new)  # x shape: [N, M, c_new, T_new]
         x = x.permute(0, 3, 1, 2)       # x shape: [N, T_new, M, c_new]
         x = x.contiguous().view(N, T_new, -1)  # x shape: [N, T_new, M * c_new]
-
-        ### Option 2: [N,T,46*output_gcn] ###
-        # C_new = x.size(1)
-        # T_new = x.size(2)
-        # x = x.view(N, M, C_new, T_new, V)  # x shape: [N, M, C_new, T, V]
-        # x = x.permute(0, 3, 1, 2, 4)  # x shape: [N, T, M, C_new, V]
-        # x = x.contiguous().view(N, T_new, -1)  # Flatten M, C_new, V into one dimension
-
-        ### Option 3: [N,T,D] with custome D ###
-        # C_new = x.size(1)
-        # T_new = x.size(2)
-        # V_new = 2  # Desired reduced spatial dimension
-        # x = x.permute(0, 2, 1, 3)  # x shape: [N*M, T_new, C_new, V]
-        # x = x.reshape(-1, C_new, V)  # x shape: [N*M*T_new, C_new, V]
-
-        # # Apply Adaptive Pooling over V
-        # pool = nn.AdaptiveAvgPool1d(V_new)
-        # x = pool(x)  # x shape: [N*M*T_new, C_new, V_new]
-
-        # # Flatten C_new and V_new
-        # x = x.view(N, M, T_new, -1)  # x shape: [N, M, T_new, C_new * V_new]
-        # x = x.permute(0, 2, 1, 3)    # x shape: [N, T_new, M, C_new * V_new]
-        # x = x.contiguous().view(N, T_new, -1)  # x shape: [N, T_new, M * C_new * V_new]
-
         return x
-
-    def training_step(self, batch, batch_idx):
-        inputs, targets = batch
-        outputs = self.forward(inputs)
-        y_pred_class = torch.argmax(torch.softmax(outputs, dim=1), dim=1)
-        # print("Targets : ", targets)
-        # print("Preds : ", y_pred_class) 
-        train_accuracy = self.metric(y_pred_class, targets)
-        loss = self.loss(outputs, targets)
-        self.log('train_accuracy', train_accuracy, prog_bar=True, on_epoch=True)
-        self.log('train_loss', loss, prog_bar=True, on_epoch=True)
-        # return {"loss": loss, "train_accuracy" : train_accuracy}
-        return loss
-    
-    def validation_step(self, batch, batch_idx):
-        inputs, targets = batch
-        outputs = self.forward(inputs)
-        y_pred_class = torch.argmax(torch.softmax(outputs, dim=1), dim=1)
-        valid_accuracy = self.metric(y_pred_class, targets)
-        loss = self.loss(outputs, targets)
-        self.log('valid_accuracy', valid_accuracy, prog_bar=True, on_epoch=True)
-        self.log('valid_loss', loss, prog_bar=True, on_epoch=True)
-        self.validation_step_loss_outputs.append(loss)
-        self.validation_step_acc_outputs.append(valid_accuracy)
-        return {"valid_loss" : loss, "valid_accuracy" : valid_accuracy}
-    
-    def on_validation_epoch_end(self):
-        # avg_loss = torch.stack(
-            # [x["valid_loss"] for x in outputs]).mean()
-        # avg_acc = torch.stack(
-            # [x["valid_accuracy"] for x in outputs]).mean()
-        avg_loss = torch.stack(self.validation_step_loss_outputs).mean()
-        avg_acc = torch.stack(self.validation_step_acc_outputs).mean()
-        self.log("ptl/val_loss", avg_loss)
-        self.log("ptl/val_accuracy", avg_acc)
-        self.validation_step_loss_outputs.clear() 
-        self.validation_step_acc_outputs.clear()
-
-    def test_step(self, batch, batch_idx):
-        inputs, targets = batch
-        outputs = self.forward(inputs)
-        y_pred_class = torch.argmax(torch.softmax(outputs, dim=1), dim=1)
-        print("Targets : ", targets)
-        print("Preds : ", y_pred_class)
-        test_accuracy = self.metric(y_pred_class, targets)
-        loss = self.loss(outputs, targets)
-        self.log('test_accuracy', test_accuracy, prog_bar=True, on_epoch=True)
-        self.log('test_loss', loss, prog_bar=True, on_epoch=True)
-        return {"test_loss" : loss, "test_accuracy" : test_accuracy}
-
-    def configure_optimizers(self):
-        params = self.parameters()
-        optimizer = optim.Adam(params=params, lr = self.learning_rate, weight_decay = self.weight_decay)
-        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='max')
-        return {"optimizer": optimizer, 
-                "lr_scheduler": {"scheduler": scheduler, "monitor": "valid_accuracy"}
-               }
-        # return optimizer  
-
-    def predict_step(self, batch, batch_idx):
-        return self(batch)
 
 if __name__ == "__main__":  
     import os
@@ -485,9 +400,9 @@ if __name__ == "__main__":
 
     # Remove the keys for the final layer (adjust 'fc' to match your model's final layer name)
     # filtered_state_dict = {k: v for k, v in state_dict.items() if not k.startswith('fc.')}
-    # del model.fc
-    # del model.loss
-    # del model.metric
+    del model.fc
+    del model.loss
+    del model.metric
     # Load the filtered state dict into the model
     # model.load_state_dict(state_dict, strict=False)
 
