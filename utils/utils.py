@@ -1,6 +1,6 @@
 import torch.nn as nn
 import torch.optim as optim
-from modelling.vtn_att_poseflow_model import VTNHCPF,VTNHCPF_GCN,VTNGCN_Combine,VTNHCPF_Three_View,VTN3GCN,VTN3GCN_v2,VTNHCPF_OneView_Sim_Knowledge_Distilation,VTNHCPF_OneView_Sim_Knowledge_Distilation_Inference
+from modelling.vtn_att_poseflow_model import VTNHCPF,VTNHCPF_GCN,VTNHCPF_Three_View,VTN3GCN,VTNHCPF_OneView_Sim_Knowledge_Distilation,VTNHCPF_OneView_Sim_Knowledge_Distilation_Inference
 import torch
 from trainer.tools import MyCustomLoss,OLM_Loss
 from modelling.i3d import InceptionI3d,InceptionI3D_ThreeView,InceptionI3D_HandCrop,I3D_OneView_Sim_Knowledge_Distillation,I3D_OneView_Sim_Knowledge_Distillation_Inference,InceptionI3D_ThreeView_ShareWeights
@@ -54,7 +54,7 @@ def load_model(cfg):
     if cfg['training']['pretrained']:
         print(f"load pretrained model: {cfg['training']['pretrained_model']}")
         if cfg['data']['model_name'] == 'vtn_att_poseflow':
-            if ('.ckpt' in cfg['training']['pretrained_model']) and ('vggkan' in cfg['model']['cnn']):
+            if ('.ckpt' in cfg['training']['pretrained_model']):
                 model = VTNHCPF(**cfg['model'],sequence_length=cfg['data']['num_output_frames'])
                 new_state_dict = {}
                 with pl_legacy_patch():
@@ -64,18 +64,6 @@ def load_model(cfg):
                         if not new_key.startswith('feature_extractor'):
                             new_state_dict[new_key] = value
                 model.load_state_dict(new_state_dict, strict=False)
-            elif ('.ckpt' in cfg['training']['pretrained_model']) and ('rn' in cfg['model']['cnn']):
-                model = VTNHCPF(**cfg['model'],sequence_length=cfg['data']['num_output_frames'])
-                new_state_dict = {}
-                with pl_legacy_patch():
-                    checkpoint = torch.load(cfg['training']['pretrained_model'], map_location='cpu')['state_dict']
-                    for key, value in checkpoint.items():
-                        new_key = key.replace('model.', '')
-                        if not new_key.startswith('feature_extractor'):
-                            new_state_dict[new_key] = value
-                model.reset_head(226) # AUTSL
-                model.load_state_dict(new_state_dict, strict=False)
-                model.reset_head(model.num_classes)
             else:
                 model = VTNHCPF(**cfg['model'],sequence_length=cfg['data']['num_output_frames'])
                 # Hot fix cause cannot find file .ckpt
@@ -96,9 +84,9 @@ def load_model(cfg):
                     checkpoint = torch.load(cfg['training']['pretrained_model'], map_location='cpu')['state_dict']
                     for key, value in checkpoint.items():
                         new_key = key.replace('model.', '')
-                        if not new_key.startswith('bottle_mm') and not new_key.startswith('self_attention_decoder') and not new_key.startswith('classifier'):
+                        # if not new_key.startswith('bottle_mm') and not new_key.startswith('self_attention_decoder') and not new_key.startswith('classifier'):
                         # if not new_key.startswith('bottle_mm') and not new_key.startswith('self_attention_decoder'):
-                        # if not new_key.startswith('bottle_mm') and not new_key.startswith('classifier'):
+                        if not new_key.startswith('bottle_mm') and not new_key.startswith('classifier'):
                         # if not new_key.startswith('classifier'):
                             new_state_dict[new_key] = value
                 model.load_state_dict(new_state_dict, strict=False)

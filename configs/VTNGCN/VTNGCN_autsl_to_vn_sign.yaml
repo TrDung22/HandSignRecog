@@ -1,12 +1,12 @@
 task: ISLR
 data:
   model_name: VTNGCN
-  # base_url: /home/ibmelab/Documents/GG/VSLRecognition/AUTSL
-  base_url: /home/ibmelab/Documents/GG/VSLRecognition/vsl
-  dataset_name: VN_SIGN
-  # dataset_name: AUTSL
+  base_url: /home/ibmelab/Documents/GG/VSLRecognition/AUTSL
+  # base_url: /home/ibmelab/Documents/GG/VSLRecognition/vsl
+  # dataset_name: VN_SIGN
+  dataset_name: AUTSL
   temporal_stride: 2
-  num_output_frames: 28
+  num_output_frames: 16
   crop_two_hand: true
   transform_cfg:
     index_setting:
@@ -20,10 +20,10 @@ data:
     NORM_STD_IMGNET: [0.229, 0.224, 0.225]
   SHOULDER_DIST_EPSILON: 1.2
   WRIST_DELTA: 0.15
-  # label_folder: label
+  label_folder: label
   # label_folder: label1-200/label/labelCenterWithOrd1/labelCenterWithout29_ord1_4316_792_791
   # label_folder: label1-200/label/labelRight
-  label_folder: label1-200/label/labelLeft
+  # label_folder: label1-200/label/labelLeft
   data_type: labels
 training:
   coefficient:
@@ -34,7 +34,7 @@ training:
   device: cuda:1
   overwrite: true
   log_freq: 1
-  experiment_name: "VTNGCN finetune autsl to vsl for one view left"
+  experiment_name: "VTNGCN finetune autsl for one view"
   # experiment_name: "VTNGCN autsl to vsl for one view right"
   model_dir: results/VTNGCN/vsl
   random_seed: 42
@@ -74,7 +74,7 @@ training:
 inference:
   batch_size: 8
 model:
-  num_classes: 199
+  num_classes: 226
   num_heads: 8
   num_layers: 4
   embed_size: 512

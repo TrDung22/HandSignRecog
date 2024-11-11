@@ -1,0 +1,5 @@
+2024-11-11 19:59:34,718 [INFO] Starting VTNGCN/VTNGCN finetune autsl for one view...
+
+
+2024-11-11 19:59:50,360 [INFO] Step[50/9378]: training loss : 5.711396150588989 TRAIN  loss dict:  {'classification_loss': 5.711396150588989}
+2024-11-11 19:59:58,189 [INFO] Step[100/9378]: training loss : 5.734338607788086 TRAIN  loss dict:  {'classification_loss': 5.734338607788086}

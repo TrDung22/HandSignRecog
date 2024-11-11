@@ -153,8 +153,8 @@ class FeatureExtractorGCN(nn.Module):
             raise ValueError(f"Unknown value for 'gcn': {gcn}")
         
         # checkpoint_path = "AAGCN/checkpoints/epoch=27-valid_accuracy=0.71-vsl199-modelWithoutStride.ckpt"
-        checkpoint_path = "AAGCN/checkpoints/epoch=95-valid_accuracy=0.73-vsl199.ckpt"
-        # checkpoint_path = "AAGCN/checkpoints/epoch=65-valid_accuracy=0.86-autsl-aagcn-fold=0.ckpt"
+        # checkpoint_path = "AAGCN/checkpoints/epoch=95-valid_accuracy=0.73-vsl199.ckpt"
+        checkpoint_path = "AAGCN/checkpoints/epoch=65-valid_accuracy=0.86-autsl-aagcn-fold=0.ckpt"
         # checkpoint_path = "AAGCN/checkpoints/epoch=15-valid_accuracy=0.70-vsl199-small-model.ckpt"
 
         # Load the checkpoint
@@ -166,16 +166,16 @@ class FeatureExtractorGCN(nn.Module):
         del self.aagcn.fc
         del self.aagcn.loss
         del self.aagcn.metric
-        # self.aagcn.load_state_dict(state_dict, strict=False)
+        self.aagcn.load_state_dict(state_dict, strict=False)
 
-        # print("Load pretrained GCN: ", checkpoint_path)
+        print("Load pretrained GCN: ", checkpoint_path)
         
-        for idx, child in enumerate(self.aagcn.children()):
-            if idx < freeze_layers:
-                for param in child.parameters():
-                    param.requires_grad = False
-            else:
-                break
+        # for idx, child in enumerate(self.aagcn.children()):
+        #     if idx < freeze_layers:
+        #         for param in child.parameters():
+        #             param.requires_grad = False
+        #     else:
+        #         break
 
     def forward(self, keypoints):
         """Extract features from the RGB images."""
