@@ -29,14 +29,18 @@ def vtn_gcn_collate_fn_(batch):
     labels = torch.stack([s[3] for s in batch], dim = 0)
     return {'clip':clip, 'poseflow':poseflow, 'keypoints':keypoints},labels
 
+def vtn_rgb_heat_collate_fn_(batch):
+    heatmap = torch.stack([s[0] for s in batch], dim=0)
+    clip = torch.stack([s[1] for s in batch],dim = 0)
+    poseflow = torch.stack([s[2] for s in batch],dim = 0)
+    labels = torch.stack([s[3] for s in batch], dim=0)
+    return {'heatmap':heatmap,'clip':clip,'poseflow':poseflow},labels
 
 def gcn_bert_collate_fn_(batch):
     labels = torch.stack([s[1] for s in batch],dim = 0)
     keypoints = torch.stack([s[0] for s in batch],dim = 0) # bs t n c
    
     return {'keypoints':keypoints},labels
-
-
 
 def three_viewpoints_collate_fn_(batch):
     center_video = torch.stack([s[0] for s in batch],dim = 0)
@@ -118,6 +122,8 @@ def distilation_collate_fn_(batch):
 def build_dataloader(cfg, split, is_train=True, model = None,labels = None):
     dataset = build_dataset(cfg['data'], split,model,train_labels = labels)
 
+    if cfg['data']['model_name'] == 'VTN_RGBheat' or cfg['data']['model_name'] == 'VTNGCN_Combine':
+        collate_func = vtn_rgb_heat_collate_fn_
     if cfg['data']['model_name'] == 'VTNGCN' or cfg['data']['model_name'] == 'VTNGCN_Combine':
         collate_func = vtn_gcn_collate_fn_
     if cfg['data']['model_name'] == 'VTN3GCN' or cfg['data']['model_name'] == 'VTN3GCN_v2':
@@ -142,20 +148,6 @@ def build_dataloader(cfg, split, is_train=True, model = None,labels = None):
     if cfg['data']['model_name']  == 'VTNHCPF_Three_view' or cfg['data']['model_name'] == 'VTNHCPF_OneView_Sim_Knowledge_Distilation':
         collate_func = vtn_hc_pf_three_view_collate_fn_
 
-    # distilation_models = ['MvitV2_OneView_Sim_Knowledge_Distillation']
-    # if cfg['data']['model_name'] in distilation_models:
-    #     collate_func = distilation_collate_fn_
-
-    # if is_train:
-    #     sampler = torch.utils.data.distributed.DistributedSampler(
-    #         dataset, 
-    #         shuffle=True
-    #     )
-    # else:
-    #     if val_distributed:
-    #         sampler = torch.utils.data.distributed.DistributedSampler(dataset, shuffle=False)
-    #     else:
-    #         sampler = torch.utils.data.SequentialSampler(dataset)
     dataloader = torch.utils.data.DataLoader(dataset,
                                             collate_fn = collate_func,
                                             batch_size = cfg['training']['batch_size'],
@@ -166,5 +158,5 @@ def build_dataloader(cfg, split, is_train=True, model = None,labels = None):
                                             persistent_workers =  True,
                                             # sampler = sampler
                                             )
-    # return dataloader, sampler
+
     return dataloader

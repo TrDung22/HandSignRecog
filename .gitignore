@@ -20,4 +20,5 @@ tools/emptyFolderCheck.py
 tools/rmEmptyFolder.py
 vsl
 test.py
+kpVisualize.py
 warning.txt
