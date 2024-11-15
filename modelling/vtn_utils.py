@@ -11,8 +11,6 @@ from torch.nn import functional as F
 from torchvision.models import resnet18, resnet34,resnet50
 import torchvision.models as models
 import torchvision
-from convKAN.models import VGGKAGN_BN,vggkagn
-from convKAN.kan_convs import BottleNeckKAGNConv2DLayer
 from AAGCN.aagcn import AAGCN
 from pytorch_lightning.utilities.migration import pl_legacy_patch
 
@@ -29,77 +27,12 @@ class FeatureExtractor(nn.Module):
             model = resnet34(weights=models.ResNet34_Weights.IMAGENET1K_V1)
         elif cnn == 'rn50':
             model = resnet50(weights=models.ResNet50_Weights.IMAGENET1K_V2)
-        elif cnn == 'vggkanbn11v4opt':
-            model = VGGKAGN_BN.from_pretrained('brivangl/vgg_kagn_bn11_v4_opt',
-                                   groups=1,
-                                   degree=3,
-                                   dropout=0.05,
-                                   l1_decay=0,
-                                   width_scale=3,
-                                   affine=True,
-                                   norm_layer=nn.BatchNorm2d,
-                                   expected_feature_shape=(1, 1),
-                                   vgg_type='VGG11v4')
-        elif cnn == 'vggkanbn11v4':
-            model = VGGKAGN_BN.from_pretrained('brivangl/vgg_kagn_bn11_v4',
-                                    groups=1,
-                                    degree=5,
-                                    dropout=0.05,
-                                    l1_decay=0,
-                                    width_scale=2,
-                                    affine=True,
-                                    norm_layer=nn.BatchNorm2d,
-                                    expected_feature_shape=(1, 1),
-                                    vgg_type='VGG11v4')
-        elif cnn == 'vggkanbn11v4sa':
-            model = VGGKAGN_BN.from_pretrained('brivangl/vgg_kagn_bn11sa_v4',
-                                    groups=1,
-                                    degree=5,
-                                    dropout= 0.05,
-                                    l1_decay=0,
-                                    width_scale=2,
-                                    affine=True,
-                                    norm_layer=nn.BatchNorm2d,
-                                    expected_feature_shape=(1, 1),
-                                    vgg_type='VGG11v4',
-                                    last_attention=True,
-                                    sa_inner_projection=None)
-        elif cnn == 'vggkan11v4':
-            model = vggkagn(3,
-                            1000,
-                            groups=1,
-                            degree=5,
-                            dropout=0.05,
-                            l1_decay=0,
-                            dropout_linear=0.25,
-                            width_scale=2,
-                            affine=True,
-                            expected_feature_shape=(1, 1),
-                            vgg_type='VGG11v4',
-                            head_type='')
-            model.from_pretrained('brivangl/vgg_kagn11_v4')
-        elif cnn == 'vggkan11v2':
-            model = vggkagn(3,
-                            1000,
-                            groups=1,
-                            degree=5,
-                            dropout=0.15,
-                            l1_decay=0,
-                            dropout_linear=0.25,
-                            width_scale=2,
-                            vgg_type='VGG11v2',
-                            expected_feature_shape=(1, 1),
-                            affine=True,
-                            head_type='')
-            model.from_pretrained('brivangl/vgg_kagn11_v2')
         else:
             raise ValueError(f'Unknown value for `cnn`: {cnn}')
 
         if cnn == 'rn18' or cnn == 'rn34' or cnn =='rn50':
             self.resnet = nn.Sequential(*list(model.children())[:-2])
-        elif cnn == 'vggkan11v4' or cnn =='vggkanbn11v4' or cnn == 'vggkanbn11v4sa' or  cnn == 'vggkan11v2' or cnn == 'vggkanbn11v4opt':                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           
-            self.convkan = model.features
-        
+
         # Freeze layers if requested.
         for layer_index in range(freeze_layers):
             for param in self.resnet[layer_index].parameters(True):
@@ -110,10 +43,6 @@ class FeatureExtractor(nn.Module):
             self.pointwise_conv = nn.Conv2d(512, embed_size, 1)
         else:
             self.pointwise_conv = nn.Identity()
-        
-        if cnn == 'vggkanbn11v4opt':
-            self.pointwise_conv = BottleNeckKAGNConv2DLayer(768, embed_size, 3, padding=1,
-                                                            norm_layer=nn.BatchNorm2d)
 
         if cnn == 'rn50':
             self.pointwise_conv = nn.Conv2d(2048, embed_size, 1)

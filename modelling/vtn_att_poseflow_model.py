@@ -4,7 +4,6 @@ from torch import nn
 from .vtn_utils import FeatureExtractor, FeatureExtractorGCN, LinearClassifier, SelfAttention
 import torch.nn.functional as F
 from pytorch_lightning.utilities.migration import pl_legacy_patch
-from AAGCN.aagcn import AAGCN
 
 class MMTensorNorm(nn.Module):
     def __init__(self, dim):
