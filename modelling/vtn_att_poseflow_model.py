@@ -198,8 +198,8 @@ class VTN_RGBheat(nn.Module):
         heatmap_feature = self.feature_extractor(heatmap.view(b, t * x, c, h, w)).view(b, t, -1)
         rgb_feature = self.feature_extractor(rgb.view(b, t * x, c, h, w)).view(b, t, -1)
 
-        heatmap_ft = self.left.forward_features(heatmap_feature, pf).mean(1)
-        rgb_ft = self.center.forward_features(rgb_feature, pf).mean(1)
+        heatmap_ft = self.heatmap.forward_features(heatmap_feature, pf).mean(1)
+        rgb_ft = self.rgb.forward_features(rgb_feature, pf).mean(1)
 
         output_features = torch.cat([heatmap_ft, rgb_ft], dim=-1)
 
@@ -208,16 +208,16 @@ class VTN_RGBheat(nn.Module):
     def forward(self, heatmap=None, rgb=None, pf=None):
         ### HAND CROP ###
         b, t, x, c, h, w = rgb.size()
-        heatmap_feature = self.feature_extractor(heatmap.view(b, t * x, c, h, w)).view(b, t, -1)
         rgb_feature = self.feature_extractor(rgb.view(b, t * x, c, h, w)).view(b, t, -1)
 
         ### NO HAND CROP ###
         # b, t, c, h, w = rgb.size()
-        # heatmap_feature = self.feature_extractor(heatmap.view(b, t, c, h, w)).view(b, t, -1)
         # rgb_feature = self.feature_extractor(rgb.view(b, t, c, h, w)).view(b, t, -1)
 
-        heatmap_ft = self.left.forward_features(heatmap_feature, pf).mean(1)
-        rgb_ft = self.center.forward_features(rgb_feature, pf).mean(1)
+        heatmap_feature = self.feature_extractor(heatmap.view(b, t, c, h, w)).view(b, t, -1)
+
+        heatmap_ft = self.heatmap.self_attention_decoder(heatmap_feature).mean(1)
+        rgb_ft = self.rgb.forward_features(rgb_feature, pf).mean(1)
 
         output_features = torch.cat([heatmap_ft, rgb_ft], dim=-1)
 

@@ -92,9 +92,9 @@ def process_video(video_path, save_dir):
             if results.pose_landmarks:
                 landmark_dict = {mp_holistic.PoseLandmark(idx).name: idx for idx in range(len(mp_holistic.PoseLandmark))}
                 for pose_identifier in POSE_IDENTIFIERS:
-                    idx = landmark_dict.get(pose_identifier, None)
-                    if idx is not None:
-                        landmark = results.pose_landmarks.landmark[idx]
+                    idx_pose = getattr(mp_holistic.PoseLandmark, pose_identifier).value
+                    if idx_pose is not None:
+                        landmark = results.pose_landmarks.landmark[idx_pose]
                         keypoint_data[f"{pose_identifier}_x"].append(landmark.x)
                         keypoint_data[f"{pose_identifier}_y"].append(landmark.y)
                     else:
@@ -104,8 +104,6 @@ def process_video(video_path, save_dir):
                 for pose_identifier in POSE_IDENTIFIERS:
                     keypoint_data[f"{pose_identifier}_x"].append(0)
                     keypoint_data[f"{pose_identifier}_y"].append(0)
-
-
 
     # Process the keypoints
     T = frame_count  # Number of frames processed
@@ -122,14 +120,19 @@ def process_video(video_path, save_dir):
         keypoints_all_frames[:, index, 0] = np.asarray(data_keypoint_preprocess_x)
         keypoints_all_frames[:, index, 1] = np.asarray(data_keypoint_preprocess_y)
 
-    # Draw the keypoints on black background and save images
-    os.makedirs(save_dir, exist_ok=True)
-    image_size = (480, 640, 3)  # Height x Width x Channels
+    cap.release()
 
-    for idx in range(T):
-        # black_image = np.zeros(image_size, dtype=np.uint8)
-        black_image = cv2.cvtColor(cap.read()[1], cv2.COLOR_BGR2RGB)
-        keypoints = keypoints_all_frames[idx]
+    # Re-open the video to read frames again
+    cap = cv2.VideoCapture(video_path)
+    frame_idx = 0
+
+    os.makedirs(save_dir, exist_ok=True)
+    while frame_idx < T:
+        ret, frame = cap.read()
+        if not ret:
+            break
+
+        keypoints = keypoints_all_frames[frame_idx]
 
         # Reconstruct the landmarks
         left_hand_landmarks_list = []
@@ -141,21 +144,21 @@ def process_video(video_path, save_dir):
             x = keypoints[i + len(hand_landmarks), 0]
             y = keypoints[i + len(hand_landmarks), 1]
             left_hand_landmarks_list.append(
-                landmark_pb2.NormalizedLandmark(x=x, y=y))
+                landmark_pb2.NormalizedLandmark(x=x, y=y, z=0))
 
         # Right hand
         for i in range(len(hand_landmarks)):
             x = keypoints[i, 0]
             y = keypoints[i, 1]
             right_hand_landmarks_list.append(
-                landmark_pb2.NormalizedLandmark(x=x, y=y))
+                landmark_pb2.NormalizedLandmark(x=x, y=y, z=0))
 
         # Pose landmarks
         for i in range(len(body_identifiers)):
             x = keypoints[i, 0]
             y = keypoints[i, 1]
             pose_landmarks_list.append(
-                landmark_pb2.NormalizedLandmark(x=x, y=y))
+                landmark_pb2.NormalizedLandmark(x=x, y=y, z=0))
 
         # Create LandmarkList objects
         left_hand_landmarks = landmark_pb2.NormalizedLandmarkList(
@@ -165,16 +168,16 @@ def process_video(video_path, save_dir):
         pose_landmarks = landmark_pb2.NormalizedLandmarkList(
             landmark=pose_landmarks_list)
 
-        # Draw landmarks on the black image
+        # Draw landmarks on the frame
         mp_drawing.draw_landmarks(
-            black_image,
+            frame,
             left_hand_landmarks,
             mp_holistic.HAND_CONNECTIONS,
             mp_drawing.DrawingSpec(color=(0, 0, 255), thickness=2, circle_radius=2),
             mp_drawing.DrawingSpec(color=(0, 255, 0), thickness=2, circle_radius=2))
 
         mp_drawing.draw_landmarks(
-            black_image,
+            frame,
             right_hand_landmarks,
             mp_holistic.HAND_CONNECTIONS,
             mp_drawing.DrawingSpec(color=(255, 0, 0), thickness=2, circle_radius=2),
@@ -186,28 +189,35 @@ def process_video(video_path, save_dir):
             (42, 45),
             (43, 44),
             (42, 43),
-            (41, 44),
+            (40, 44),
             (20, 45)
         ]
 
         mp_drawing.draw_landmarks(
-            black_image,
+            frame,
             pose_landmarks,
             pose_connections,
             mp_drawing.DrawingSpec(color=(0, 255, 255), thickness=2, circle_radius=2),
             mp_drawing.DrawingSpec(color=(255, 255, 0), thickness=2, circle_radius=2))
 
-        # Save image
-        output_file = os.path.join(save_dir, f"frame_{idx:05d}.png")
-        cv2.imwrite(output_file, black_image)
+        # Save the frame with keypoints drawn
+        output_file = os.path.join(save_dir, f"frame_{frame_idx:05d}.png")
+        cv2.imwrite(output_file, frame)
+
+        frame_idx += 1
+
     cap.release()
+
 if __name__ == "__main__":
     video_path = "vsl/videos/01_Co-Hien_1-100_1-2-3_0108___center_device02_signer01_center_ord1_15.mp4"  # Replace with your video path
     save_directory = "vsl/handkp"  # Replace with your desired save directory
     process_video(video_path, save_directory)
     print("Processing completed.")
-    # Tìm chỉ số của một vị trí trong danh sách HAND_IDENTIFIERS
-    # idx_right_shoudler = body_identifiers.index('WRIST_right')
-    # print(f"Index của 'INDEX_WRIST_right' là: {idx_right_shoudler}")
-    # idx_right_shoudler = body_identifiers.index('WRIST_left')
-    # print(f"Index của 'INDEX_WRIST_left' là: {idx_right_shoudler}")
+    # Kiểm tra chỉ số của 'WRIST_right'
+    # idx_wrist_right = body_identifiers.index('WRIST_right')
+    # print(f"Chỉ số của 'WRIST_right' là: {idx_wrist_right}")
+    #
+    # # Kiểm tra chỉ số của 'WRIST_left'
+    # idx_wrist_left = body_identifiers.index('WRIST_left')
+    # print(f"Chỉ số của 'WRIST_left' là: {idx_wrist_left}")
+
