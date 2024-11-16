@@ -240,6 +240,10 @@ def process_videos_in_folder(input_folder, output_folder):
 
             # Create a subdirectory in the output folder with the video name
             save_directory = os.path.join(output_folder, video_name)
+            if os.path.exists(save_directory):
+                print(f"Thư mục đầu ra cho video '{video_filename}' đã tồn tại. Bỏ qua việc xử lý.")
+                continue  # Bỏ qua video này và tiếp tục với video tiếp theo
+
             os.makedirs(save_directory, exist_ok=True)
 
             print(f"Processing video: {video_filename}")
