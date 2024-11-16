@@ -122,7 +122,7 @@ def distilation_collate_fn_(batch):
 def build_dataloader(cfg, split, is_train=True, model = None,labels = None):
     dataset = build_dataset(cfg['data'], split,model,train_labels = labels)
 
-    if cfg['data']['model_name'] == 'VTN_RGBheat' or cfg['data']['model_name'] == 'VTNGCN_Combine':
+    if cfg['data']['model_name'] == 'VTN_RGBheat' or cfg['data']['model_name'] == '2s-CrossVTN':
         collate_func = vtn_rgb_heat_collate_fn_
     if cfg['data']['model_name'] == 'VTNGCN' or cfg['data']['model_name'] == 'VTNGCN_Combine':
         collate_func = vtn_gcn_collate_fn_

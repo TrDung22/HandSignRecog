@@ -142,6 +142,39 @@ class SelfAttention(nn.Module):
 
         return x
 
+class CrossAttention(nn.Module):
+    """Process sequences using self attention."""
+
+    def __init__(self, input_size, hidden_size, n_heads, sequence_size, inner_hidden_factor=2, layer_norm=True,dropout = 0.1):
+        super().__init__()
+
+        input_sizes = [hidden_size] * len(n_heads)
+        input_sizes[0] = input_size
+        hidden_sizes = [hidden_size] * len(n_heads)
+
+        self.position_encoding = PositionEncoding(sequence_size, hidden_size)
+
+        self.layers = nn.ModuleList([
+            nn.ModuleDict({
+                'attn1': CombinedAttentionBlock(
+                    inp_size, hid_size, hid_size * inner_hidden_factor,
+                    n_head, dropout=dropout, layer_norm=layer_norm
+                ),
+                'attn2': CombinedAttentionBlock(
+                    inp_size, hid_size, hid_size * inner_hidden_factor,
+                    n_head, dropout=dropout, layer_norm=layer_norm
+                )
+            })
+            for i, (inp_size, hid_size, n_head) in enumerate(zip(input_sizes, hidden_sizes, n_heads))
+        ])
+
+    def forward(self, x1, x2):
+        x1 = self.position_encoding(x1)
+        x2 = self.position_encoding(x2)
+        for layer in self.layers:
+            x1 = layer['attn1'](x1, context=x2)
+            x2 = layer['attn2'](x2, context=x1)
+        return x1, x2
 
 class LinearClassifier(nn.Module):
     def __init__(self, input_size, num_classes, dropout=0):
@@ -322,6 +355,43 @@ class DecoderBlock(nn.Module):
         )
         enc_output = self.pos_ffn(enc_output)
         return enc_output
+
+class CrossAttentionBlock(nn.Module):
+    def __init__(self, input_size, hidden_size, inner_hidden_size, n_heads, dropout, layer_norm=True):
+        super().__init__()
+        self.cross_attn = MultiHeadAttention(
+            n_heads, input_size, hidden_size,
+            d_k=hidden_size // n_heads, d_v=hidden_size // n_heads,
+            dropout=dropout, layer_norm=layer_norm
+        )
+        self.feed_forward = PositionwiseFeedForward(
+            hidden_size, inner_hidden_size, dropout=dropout, layer_norm=layer_norm
+        )
+
+    def forward(self, x, context):
+        x, attn = self.cross_attn(q=x, k=context, v=context)
+        x = self.feed_forward(x)
+        return x
+
+class CombinedAttentionBlock(nn.Module):
+    def __init__(self, input_size, hidden_size, inner_hidden_size, n_heads, dropout=0.1, layer_norm=True):
+        super().__init__()
+        # Self-attention block
+        self.self_attn = DecoderBlock(
+            input_size, hidden_size, inner_hidden_size, n_heads,
+            d_k=hidden_size // n_heads, d_v=hidden_size // n_heads,
+            dropout=dropout, layer_norm=layer_norm
+        )
+        # Cross-attention block
+        self.cross_attn = CrossAttentionBlock(
+            input_size, hidden_size, inner_hidden_size, n_heads,
+            dropout=dropout, layer_norm=layer_norm
+        )
+
+    def forward(self, x, context):
+        x = self.self_attn(x)
+        x = self.cross_attn(x, context)
+        return x
 
 
 class PositionEncoding(nn.Module):
