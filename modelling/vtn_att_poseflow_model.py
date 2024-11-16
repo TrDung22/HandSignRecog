@@ -1,7 +1,7 @@
 import torch
 from torch import nn
 
-from .vtn_utils import FeatureExtractor, FeatureExtractorGCN, LinearClassifier, SelfAttention
+from .vtn_utils import FeatureExtractor, FeatureExtractorGCN, LinearClassifier, SelfAttention, CrossAttention
 import torch.nn.functional as F
 from pytorch_lightning.utilities.migration import pl_legacy_patch
 
@@ -225,6 +225,69 @@ class VTN_RGBheat(nn.Module):
         return {
             'logits': y
         }
+
+class CrossVTN(nn.Module):
+    def __init__(self, num_classes=199, num_heads=4, num_layers=2, embed_size=512, sequence_length=16, cnn='rn34',
+                 freeze_layers=0, dropout=0, **kwargs):
+        super().__init__()
+        print("Model: CrossVTN")
+        self.sequence_length = sequence_length
+        self.embed_size = embed_size
+        self.num_classes = num_classes
+
+        self.feature_extractor_heatmap = FeatureExtractor(cnn, embed_size, freeze_layers)
+        self.feature_extractor_rgb = FeatureExtractor(cnn, embed_size, freeze_layers)
+
+        num_attn_features = 2 * embed_size
+        self.norm = MMTensorNorm(-1)
+        self.bottle_mm = nn.Linear(106 + num_attn_features, num_attn_features)
+        self.cross_attention= CrossAttention(num_attn_features, num_attn_features,
+                                                    [num_heads] * num_layers,
+                                                    self.sequence_length, layer_norm=True, dropout=dropout)
+        self.classifier = LinearClassifier(num_attn_features*2, num_classes, dropout)
+        self.num_attn_features = num_attn_features
+        self.dropout = dropout
+        self.num_classes = num_classes
+        self.relu = F.relu
+
+    def reset_head(self, num_classes):
+        self.classifier = LinearClassifier(self.num_attn_features*2, num_classes, self.dropout)
+        print("Reset to ", num_classes)
+
+    def forward_features(self, features=None, poseflow=None):
+        # Reshape to put both hand crops on the same axis.
+
+        zp = torch.cat((features, poseflow), dim=-1)
+
+        zp = self.norm(zp)
+        zp = self.relu(self.bottle_mm(zp))
+
+        zp = self.self_attention_decoder(zp)
+
+        return zp
+
+    def forward(self, heatmap=None, rgb=None, pf=None, **kwargs):
+        """Extract the image feature vectors."""
+        ### HAND CROP ###
+        b, t, x, c, h, w = rgb.size()
+        rgb_feature = self.feature_extractor_rgb(rgb.view(b, t * x, c, h, w)).view(b, t, -1)
+
+        ### NO HAND CROP ###
+        # b, t, c, h, w = rgb.size()
+        # rgb_feature = self.feature_extractor(rgb.view(b, t, c, h, w)).view(b, t, -1)
+
+        heatmap_feature = self.feature_extractor_heatmap(heatmap.view(b, t, c, h, w)).view(b, t, -1)
+
+        rgb_feature = torch.cat((rgb_feature, pf), dim=-1)
+        rgb_feature = self.norm(rgb_feature)
+        rgb_feature = self.relu(self.bottle_mm(rgb_feature))
+
+        heatmap_feature, rgb_feature = self.cross_attention(heatmap_feature, rgb_feature)
+        output_feature = torch.cat((heatmap_feature, rgb_feature), dim=-1)
+
+        y = self.classifier(output_feature)
+
+        return {'logits': y}  # train
 
 
 class VTNHCPF_Three_View(nn.Module):

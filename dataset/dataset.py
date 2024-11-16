@@ -12,7 +12,7 @@ def build_dataset(dataset_cfg, split,model = None,**kwargs):
 
     if dataset_cfg['model_name'] == 'VTNGCN' or dataset_cfg['model_name'] == 'VTNGCN_Combine':
         dataset = VTN_GCN_Dataset(dataset_cfg['base_url'],split,dataset_cfg,**kwargs)
-    if dataset_cfg['model_name'] == 'VTN_RGBheat':
+    if dataset_cfg['model_name'] == 'VTN_RGBheat' or dataset_cfg['model_name'] == '2s-CrossVTN':
         dataset = VTN_RGBheat_Dataset(dataset_cfg['base_url'],split,dataset_cfg,**kwargs)
     if dataset_cfg['model_name'] == 'VTN3GCN' or dataset_cfg['model_name'] == 'VTN3GCN_v2':
         dataset = VTN3GCNData(dataset_cfg['base_url'],split,dataset_cfg,**kwargs)
