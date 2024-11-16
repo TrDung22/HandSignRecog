@@ -94,17 +94,59 @@ def load_model(cfg):
                 model.load_state_dict(new_state_dict, strict=False)
                 model.reset_head(model.num_classes)
             else:
-                # new_state_dict = {}
-                # checkpoint = torch.load(cfg['training']['pretrained_model'], map_location='cpu')
-                # for key, value in checkpoint.items():
-                #     if not key.startswith('bottle_mm') and not key.startswith('self_attention_decoder') and not key.startswith('classifier'):
-                #     # if not key.startswith('feature_extractor_gcn') and not key.startswith('classifier'):
-                #         new_state_dict[key] = value
-                # model.load_state_dict(new_state_dict, strict=False)
-                # model.reset_head(model.num_classes)
-                """"""
                 model.load_state_dict(torch.load(cfg['training']['pretrained_model'],map_location='cpu'))
-                
+
+        elif cfg['data']['model_name'] == 'VTN_RGBheat':
+            model = VTN_RGBheat(**cfg['model'], sequence_length=cfg['data']['num_output_frames'])
+            if '.ckpt' in cfg['training']['pretrained_model']:
+                new_state_dict = {}
+                with pl_legacy_patch():
+                    for key, value in torch.load(cfg['training']['pretrained_model'], map_location='cpu')[
+                        'state_dict'].items():
+                        new_state_dict[key.replace('model.', '')] = value
+                model.rgb.reset_head(226)  # AUTSL
+                model.heatmap.reset_head(226)  # AUTSL
+                # load autsl ckpt
+                model.rgb.load_state_dict(new_state_dict, strict=False)
+                model.heatmap.load_state_dict(new_state_dict, strict=False)
+                # add backbone
+                model.add_backbone()
+                # remove center, left and right backbone
+                model.remove_head_and_backbone()
+                model.freeze(layers=0)
+                print("Load VTNHCPF Three View")
+            elif "IMAGENET" == cfg['training']['pretrained_model']:
+                model.add_backbone()
+                model.remove_head_and_backbone()
+                print("Load VTNHCPF Three View IMAGENET")
+            else:
+                model.add_backbone()
+                model.remove_head_and_backbone()
+                model.load_state_dict(torch.load(cfg['training']['pretrained_model'], map_location='cpu'))
+
+            print("Load VTN_RGBheat")
+
+        elif cfg['data']['model_name'] == '2s-CrossVTN':
+            model = CrossVTN(**cfg['model'],sequence_length=cfg['data']['num_output_frames'])
+            if '.ckpt' in cfg['training']['pretrained_model']:
+                new_state_dict = model.state_dict()
+                with pl_legacy_patch():
+                    state_dict = torch.load('VTN_HCPF.ckpt', map_location='cpu')['state_dict']
+
+                pretrained_dict = {}
+                for k, v in state_dict.items():
+                    if k.startswith('feature_extractor'):
+                        pretrained_dict[f'feature_extractor_rgb.{k[len("feature_extractor."):]}'] = v
+                        pretrained_dict[f'feature_extractor_heatmap.{k[len("feature_extractor."):]}'] = v
+                    elif k.startswith('bottle_mm'):
+                        pretrained_dict[k] = v
+
+                new_state_dict.update(pretrained_dict)
+                model.load_state_dict(new_state_dict, strict=False)
+                model.reset_head(model.num_classes)
+            else:
+                model.load_state_dict(torch.load(cfg['training']['pretrained_model'],map_location='cpu'))
+
         elif cfg['data']['model_name'] == 'VTNHCPF_Three_view':
             model = VTNHCPF_Three_View(**cfg['model'],sequence_length=cfg['data']['num_output_frames'])
             if '.ckpt' in cfg['training']['pretrained_model']:

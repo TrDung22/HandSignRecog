@@ -254,17 +254,8 @@ class CrossVTN(nn.Module):
         self.classifier = LinearClassifier(self.num_attn_features*2, num_classes, self.dropout)
         print("Reset to ", num_classes)
 
-    def forward_features(self, features=None, poseflow=None):
-        # Reshape to put both hand crops on the same axis.
-
-        zp = torch.cat((features, poseflow), dim=-1)
-
-        zp = self.norm(zp)
-        zp = self.relu(self.bottle_mm(zp))
-
-        zp = self.self_attention_decoder(zp)
-
-        return zp
+    def forward_features(self):
+        return None
 
     def forward(self, heatmap=None, rgb=None, pf=None, **kwargs):
         """Extract the image feature vectors."""
