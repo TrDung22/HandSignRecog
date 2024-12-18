@@ -79,4 +79,4 @@ model:
   embed_size: 512
   cnn: rn34
   freeze_layers: 5 
-  dropout: 0.12
+  dropout: 0.1

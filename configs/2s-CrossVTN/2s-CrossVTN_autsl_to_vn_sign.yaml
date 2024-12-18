@@ -1,7 +1,6 @@
 task: ISLR
 data:
-#  model_name: 2s-CrossVTN
-  model_name: VTN_RGBheat
+  model_name: 2s-CrossVTN
   base_url: /home/ibmelab/Documents/GG/VSLRecognition/AUTSL
   # base_url: /home/ibmelab/Documents/GG/VSLRecognition/vsl
   # dataset_name: VN_SIGN
@@ -35,8 +34,7 @@ training:
   device: cuda:1
   overwrite: true
   log_freq: 1
-  experiment_name: "VTNGCN finetune autsl for one view"
-  # experiment_name: "VTNGCN autsl to vsl for one view right"
+  experiment_name: "2s-CrossVTN finetune autsl for one view"
   model_dir: results/VTNGCN/vsl
   random_seed: 42
   shuffle: True
@@ -77,8 +75,8 @@ inference:
 model:
   num_classes: 226
   num_heads: 8
-  num_layers: 4
+  num_layers_stream: 4
   embed_size: 512
   cnn: rn34
   freeze_layers: 5 
-  dropout: 0.12
+  dropout: 0.1

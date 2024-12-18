@@ -1,18 +1,13 @@
-"""Common model code. For example, the VTN, VTN_HC and VTN_HCPF all share the
-feature extraction and multi-head attention.
-
-This code was originally based on https://github.com/openvinotoolkit/training_extensions (see LICENCE_OPENVINO)
-and modified for this project.
-"""
 import numpy as np
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
-from torchvision.models import resnet18, resnet34,resnet50
+from torchvision.models import resnet18, resnet34, resnet50
 import torchvision.models as models
 import torchvision
 from AAGCN.aagcn import AAGCN
 from pytorch_lightning.utilities.migration import pl_legacy_patch
+
 
 class FeatureExtractor(nn.Module):
     """Feature extractor for RGB clips, powered by a 2D CNN backbone."""
@@ -30,7 +25,7 @@ class FeatureExtractor(nn.Module):
         else:
             raise ValueError(f'Unknown value for `cnn`: {cnn}')
 
-        if cnn == 'rn18' or cnn == 'rn34' or cnn =='rn50':
+        if cnn == 'rn18' or cnn == 'rn34' or cnn == 'rn50':
             self.resnet = nn.Sequential(*list(model.children())[:-2])
 
         # Freeze layers if requested.
@@ -46,9 +41,8 @@ class FeatureExtractor(nn.Module):
 
         if cnn == 'rn50':
             self.pointwise_conv = nn.Conv2d(2048, embed_size, 1)
-            
+
         self.avg_pool = F.adaptive_avg_pool2d
-        
 
     def forward(self, rgb_clip):
         """Extract features from the RGB images."""
@@ -65,61 +59,12 @@ class FeatureExtractor(nn.Module):
         # Restore the original dimensions of the tensor.
         features = features.view(b, t, -1)
         return features
-    
-class FeatureExtractorGCN(nn.Module):
-    """Feature extractor for RGB clips, powered by a GCN backbone."""
 
-    def __init__(self, gcn='AAGCN',freeze_layers=10, learning_rate=0.0137296, 
-                 weight_decay=0.000150403, num_point=46, num_person=1, in_channels=2):
-        """Initialize the feature extractor with given GCN backbone and desired feature size."""
-        super().__init__()
-
-        if gcn == 'AAGCN':
-            self.aagcn = AAGCN(num_point=num_point, num_person=num_person, in_channels=in_channels,
-                graph_args = {"layout" :"mediapipe_two_hand", "strategy": "spatial"},
-                learning_rate=learning_rate, weight_decay=weight_decay)
-        else:
-            raise ValueError(f"Unknown value for 'gcn': {gcn}")
-        
-        # checkpoint_path = "AAGCN/checkpoints/epoch=27-valid_accuracy=0.71-vsl199-modelWithoutStride.ckpt"
-        # checkpoint_path = "AAGCN/checkpoints/epoch=95-valid_accuracy=0.73-vsl199.ckpt"
-        checkpoint_path = "AAGCN/checkpoints/epoch=65-valid_accuracy=0.86-autsl-aagcn-fold=0.ckpt"
-        # checkpoint_path = "AAGCN/checkpoints/epoch=15-valid_accuracy=0.70-vsl199-small-model.ckpt"
-
-        # Load the checkpoint
-        with pl_legacy_patch():
-            checkpoint = torch.load(checkpoint_path, map_location='cpu')
-
-        # Get the state dict
-        state_dict = checkpoint['state_dict']
-        del self.aagcn.fc
-        del self.aagcn.loss
-        del self.aagcn.metric
-        self.aagcn.load_state_dict(state_dict, strict=False)
-
-        print("Load pretrained GCN: ", checkpoint_path)
-        
-        # for idx, child in enumerate(self.aagcn.children()):
-        #     if idx < freeze_layers:
-        #         for param in child.parameters():
-        #             param.requires_grad = False
-        #     else:
-        #         break
-
-    def forward(self, keypoints):
-        """Extract features from the RGB images."""
-        """N, C, T, V, M"""
-        features = self.aagcn(keypoints)
-        T_input = features.size(1) * 4  # Vì T_output = T_input / 4
-        features = features.permute(0, 2, 1)  # Chuyển thành [N, -1, T_output]
-        features_umsampled = torch.nn.functional.interpolate(features, size=T_input, mode='linear', align_corners=True)
-        features_umsampled = features_umsampled.permute(0, 2, 1)
-        return features_umsampled
-
-class SelfAttention(nn.Module):
+class StreamCrossAttention(nn.Module):
     """Process sequences using self attention."""
 
-    def __init__(self, input_size, hidden_size, n_heads, sequence_size, inner_hidden_factor=2, layer_norm=True,dropout = 0.1):
+    def __init__(self, input_size, hidden_size, n_heads, sequence_size, inner_hidden_factor=2, layer_norm=True,
+                 dropout=0.1):
         super().__init__()
 
         input_sizes = [hidden_size] * len(n_heads)
@@ -129,23 +74,70 @@ class SelfAttention(nn.Module):
         self.position_encoding = PositionEncoding(sequence_size, hidden_size)
 
         self.layers = nn.ModuleList([
-            DecoderBlock(inp_size, hid_size, hid_size * inner_hidden_factor, n_head, hid_size // n_head,
-                         hid_size // n_head, layer_norm=layer_norm,dropout = dropout)
+            nn.ModuleDict({
+                'stream1': StreamAttentionBlock(
+                    inp_size, hid_size, hid_size * inner_hidden_factor,
+                    n_head, dropout=dropout, layer_norm=layer_norm
+                ),
+                'stream2': StreamAttentionBlock(
+                    inp_size, hid_size, hid_size * inner_hidden_factor,
+                    n_head, dropout=dropout, layer_norm=layer_norm
+                )
+            })
             for i, (inp_size, hid_size, n_head) in enumerate(zip(input_sizes, hidden_sizes, n_heads))
         ])
 
-    def forward(self, x,cls_token_encodings = False):
-        x = self.position_encoding(x,cls_token_encodings = cls_token_encodings)
-
+    def forward(self, x1, x2):
+        x1 = self.position_encoding(x1)
+        x2 = self.position_encoding(x2)
         for layer in self.layers:
-            x = layer(x)
+            x1 = layer['stream1'](x1, context=x2)
+            x2 = layer['stream2'](x2, context=x1)
+        return x1, x2
 
-        return x
+class ViewsCrossAttention(nn.Module):
+    """Process sequences using self attention."""
 
+    def __init__(self, input_size, hidden_size, n_heads, sequence_size, inner_hidden_factor=2, layer_norm=True,
+                 dropout=0.1):
+        super().__init__()
+
+        input_sizes = [hidden_size] * len(n_heads)
+        input_sizes[0] = input_size
+        hidden_sizes = [hidden_size] * len(n_heads)
+
+        self.position_encoding = PositionEncoding(sequence_size, hidden_size)
+
+        self.layers = nn.ModuleList([
+            nn.ModuleDict({
+                'view1': ViewsAttentionBlock(
+                    inp_size, hid_size, hid_size * inner_hidden_factor,
+                    n_head, dropout=dropout, layer_norm=layer_norm
+                ),
+                'view2': ViewsAttentionBlock(
+                    inp_size, hid_size, hid_size * inner_hidden_factor,
+                    n_head, dropout=dropout, layer_norm=layer_norm
+                ),
+                'view3': ViewsAttentionBlock(
+                    inp_size, hid_size, hid_size * inner_hidden_factor,
+                    n_head, dropout=dropout, layer_norm=layer_norm
+                )
+            })
+            for i, (inp_size, hid_size, n_head) in enumerate(zip(input_sizes, hidden_sizes, n_heads))
+        ])
+
+    def forward(self, x1, x2, x3):
+        x1 = self.position_encoding(x1)
+        x2 = self.position_encoding(x2)
+        x3 = self.position_encoding(x3)
+        for layer in self.layers:
+            x1 = layer['view1'](x1, context1=x2, context2=x3)
+            x2 = layer['view2'](x2, context1=x1, context2=x3)
+            x3 = layer['view3'](x3, context1=x1, context2=x2)
+        return x1, x2, x3
 class LinearClassifier(nn.Module):
     def __init__(self, input_size, num_classes, dropout=0):
         super().__init__()
-        
 
         self.dropout = nn.Dropout(dropout)
         self.fc = nn.Linear(input_size, num_classes)
@@ -157,26 +149,6 @@ class LinearClassifier(nn.Module):
         return self.fc(self.dropout(x))
 
 
-# "PRIVATE"
-
-
-class Bottle(nn.Module):
-    """ Perform the reshape routine before and after an operation."""
-
-    def forward(self, input):
-        if len(input.size()) <= 2:
-            return super(Bottle, self).forward(input)
-        size = input.size()[:2]
-        out = super(Bottle, self).forward(input.view(size[0] * size[1], -1))
-        return out.view(size[0], size[1], -1)
-
-
-# https://discuss.pytorch.org/t/how-the-following-two-classes-interacts/1333/2
-class BottleSoftmax(Bottle, nn.Softmax):
-    """ Perform the reshape routine before and after a softmax operation."""
-    pass
-
-
 class ScaledDotProductAttention(nn.Module):
     """ Scaled Dot-Product Attention """
 
@@ -185,14 +157,13 @@ class ScaledDotProductAttention(nn.Module):
         self.temper = np.power(d_model, 0.5)
         self.dropout = nn.Dropout(attn_dropout)
         # self.softmax = BottleSoftmax()
-        
 
     def forward(self, q, k, v):
         # q.size(): [nh*b x t x d_k]
         attn = torch.bmm(q, k.transpose(1, 2)) / self.temper
 
         # attn = self.softmax(attn)
-        attn = attn.softmax(dim = -1)
+        attn = attn.softmax(dim=-1)
         attn = self.dropout(attn)
         output = torch.bmm(attn, v)
 
@@ -313,21 +284,78 @@ class DecoderBlock(nn.Module):
         super(DecoderBlock, self).__init__()
         self.slf_attn = MultiHeadAttention(n_head, input_size, hidden_size, d_k, d_v, dropout=dropout,
                                            layer_norm=layer_norm)
-        self.pos_ffn = PositionwiseFeedForward(hidden_size, inner_hidden_size, dropout=dropout, layer_norm=layer_norm)
-
     def forward(self, enc_input):
         enc_output = self.slf_attn(
             enc_input, enc_input, enc_input
         )
-        enc_output = self.pos_ffn(enc_output)
         return enc_output
+
+
+class CrossAttentionBlock(nn.Module):
+    def __init__(self, input_size, hidden_size, inner_hidden_size, n_heads, dropout, layer_norm=True):
+        super().__init__()
+        self.cross_attn = MultiHeadAttention(
+            n_heads, input_size, hidden_size,
+            d_k=hidden_size // n_heads, d_v=hidden_size // n_heads,
+            dropout=dropout, layer_norm=layer_norm
+        )
+        self.feed_forward = PositionwiseFeedForward(
+            hidden_size, inner_hidden_size, dropout=dropout, layer_norm=layer_norm
+        )
+
+    def forward(self, x, context):
+        x = self.cross_attn(q=x, k=context, v=context)
+        x = self.feed_forward(x)
+        return x
+
+
+class StreamAttentionBlock(nn.Module):
+    def __init__(self, input_size, hidden_size, inner_hidden_size, n_heads, dropout=0.1, layer_norm=True):
+        super().__init__()
+        # Self-attention block
+        self.self_attn = DecoderBlock(
+            input_size, hidden_size, inner_hidden_size, n_heads,
+            d_k=hidden_size // n_heads, d_v=hidden_size // n_heads,
+            dropout=dropout, layer_norm=layer_norm
+        )
+        # Cross-attention block
+        self.cross_attn = CrossAttentionBlock(
+            input_size, hidden_size, inner_hidden_size, n_heads,
+            dropout=dropout, layer_norm=layer_norm
+        )
+
+    def forward(self, x, context):
+        x = self.self_attn(x)
+        x = self.cross_attn(x, context)
+        return x
+
+class ViewsAttentionBlock(nn.Module):
+    def __init__(self, input_size, hidden_size, inner_hidden_size, n_heads, dropout=0.1, layer_norm=True):
+        super().__init__()
+        # Self-attention block
+        self.self_attn = DecoderBlock(
+            input_size, hidden_size, inner_hidden_size, n_heads,
+            d_k=hidden_size // n_heads, d_v=hidden_size // n_heads,
+            dropout=dropout, layer_norm=layer_norm
+        )
+        # Cross-attention block
+        self.cross_attn = CrossAttentionBlock(
+            input_size, hidden_size, inner_hidden_size, n_heads,
+            dropout=dropout, layer_norm=layer_norm
+        )
+
+    def forward(self, x, context1, context2):
+        x = self.self_attn(x)
+        x1 = self.cross_attn(x, context1)
+        x2 = self.cross_attn(x, context2)
+        return (x1+x2)/2
 
 class PositionEncoding(nn.Module):
     def __init__(self, n_positions, hidden_size):
         super().__init__()
         # self.enc = nn.Embedding(n_positions, hidden_size, padding_idx=0)
         self.enc = nn.Embedding(n_positions, hidden_size)
-        
+
         position_enc = np.array([
             [pos / np.power(10000, 2 * (j // 2) / hidden_size) for j in range(hidden_size)]
             if pos != 0 else np.zeros(hidden_size) for pos in range(n_positions)])
@@ -336,50 +364,14 @@ class PositionEncoding(nn.Module):
         position_enc[1:, 1::2] = np.cos(position_enc[1:, 1::2])  # dim 2i+1
         self.enc.weight = torch.nn.Parameter(torch.from_numpy(position_enc).to(self.enc.weight.device, torch.float))
 
-    def forward(self, x,cls_token_encodings = False):
+    def forward(self, x, cls_token_encodings=False):
         size = x.size(1)
         if cls_token_encodings:
-           size = size - 1
+            size = size - 1
         indeces = torch.arange(0, size).to(self.enc.weight.device, torch.long)
         encodings = self.enc(indeces)
         if cls_token_encodings:
-            x = x[:,1:] + encodings
+            x = x[:, 1:] + encodings
         else:
             x = x + encodings
         return x
-
-
-# class FeatureExtractor_AttentionPool2D(nn.Module):
-#     """Feature extractor for RGB clips, powered by a 2D CNN backbone."""
-
-#     def __init__(self, cnn='rn50', embed_size=512, freeze_layers=0):
-#         """Initialize the feature extractor with given CNN backbone and desired feature size."""
-#         super().__init__()
-
-#         model = resnet50(weights = torchvision.models.ResNet50_Weights.IMAGENET1K_V2)
-
-#         self.resnet = nn.Sequential(*list(model.children())[:-2])
-
-#         # Freeze layers if requested.
-#         for layer_index in range(freeze_layers):
-#             for param in self.resnet[layer_index].parameters(True):
-#                 param.requires_grad_(False)
-        
-#         self.attnpool = AttentionPool2d(224 // 32, 64*32, 32, embed_size)
-
-#     def forward(self, rgb_clip):
-#         """Extract features from the RGB images."""
-#         b, t, c, h, w = rgb_clip.size()
-#         # Process all sequential data in parallel as a large mini-batch.
-#         rgb_clip = rgb_clip.view(b * t, c, h, w)
-
-#         features = self.resnet(rgb_clip)
-
-#         # Transform the output of the ResNet (C x H x W) to a single feature vector using pooling.
-#         features = self.attnpool(features)
-
-#         # Restore the original dimensions of the tensor.
-#         features = features.view(b, t, -1)
-#         return features
-    
-    

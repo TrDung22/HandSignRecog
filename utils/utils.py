@@ -1,7 +1,7 @@
 import torch.nn as nn
 import torch.optim as optim
-from modelling.vtn_att_poseflow_model import (VTNHCPF,VTNHCPF_GCN,VTNHCPF_Three_View,VTN3GCN,CrossVTN,
-                                              VTNHCPF_OneView_Sim_Knowledge_Distilation,VTNHCPF_OneView_Sim_Knowledge_Distilation_Inference)
+from modelling.vtn_att_poseflow_model import VTNHCPF,VTNHCPF_GCN,VTNHCPF_Three_View,VTN3GCN,VTNHCPF_OneView_Sim_Knowledge_Distilation,VTNHCPF_OneView_Sim_Knowledge_Distilation_Inference
+from modelling.crossVTN_model import TwoStreamCrossVTN, TwoStreamCrossViewVTN
 import torch
 from trainer.tools import MyCustomLoss,OLM_Loss
 from torchvision import models
@@ -93,7 +93,7 @@ def load_model(cfg):
                 model.load_state_dict(torch.load(cfg['training']['pretrained_model'],map_location='cpu'))
 
         elif cfg['data']['model_name'] == '2s-CrossVTN':
-            model = CrossVTN(**cfg['model'],sequence_length=cfg['data']['num_output_frames'])
+            model = TwoStreamCrossVTN(**cfg['model'],sequence_length=cfg['data']['num_output_frames'])
             if '.ckpt' in cfg['training']['pretrained_model']:
                 new_state_dict = model.state_dict()
                 with pl_legacy_patch():
@@ -101,11 +101,60 @@ def load_model(cfg):
 
                 pretrained_dict = {}
                 for k, v in state_dict.items():
+                    # Ánh xạ các trọng số của feature_extractor nếu cần
                     if k.startswith('feature_extractor'):
                         pretrained_dict[f'feature_extractor_rgb.{k[len("feature_extractor."):]}'] = v
                         pretrained_dict[f'feature_extractor_heatmap.{k[len("feature_extractor."):]}'] = v
-                    elif k.startswith('bottle_mm'):
-                        pretrained_dict[k] = v
+                    # Ánh xạ các trọng số của self_attention_decoder
+                    elif k.startswith('self_attention_decoder.layers.'):
+                        parts = k.split('.')
+                        layer_idx = parts[2]  # Ví dụ: '0', '1', ...
+                        sub_module = parts[3]  # Ví dụ: 'slf_attn', 'pos_ffn', ...
+                        param = '.'.join(parts[4:])  # Ví dụ: 'w_qs', 'layer_norm.a_2', ...
+
+                        # 1. Ánh xạ các trọng số Self-Attention (w_qs, w_ks, w_vs)
+                        if sub_module == 'slf_attn':
+                            # Ánh xạ cho stream1.self_attn
+                            new_key = f'cross_attention.layers.{layer_idx}.stream1.self_attn.{param}'
+                            pretrained_dict[new_key] = v
+                            # Ánh xạ cho stream1.cross_attn
+                            new_key = f'cross_attention.layers.{layer_idx}.stream1.cross_attn.{param}'
+                            pretrained_dict[new_key] = v
+                            # Ánh xạ cho stream2.self_attn
+                            new_key = f'cross_attention.layers.{layer_idx}.stream2.self_attn.{param}'
+                            pretrained_dict[new_key] = v
+                            # Ánh xạ cho stream2.cross_attn
+                            new_key = f'cross_attention.layers.{layer_idx}.stream2.cross_attn.{param}'
+                            pretrained_dict[new_key] = v
+
+                        # 2. Ánh xạ các tham số Layer Normalization (a_2, b_2) cho Self-Attention
+                        elif sub_module == 'slf_attn.layer_norm':
+                            new_key1 = f'cross_attention.layers.{layer_idx}.stream1.self_attn.layer_norm.{param}'
+                            pretrained_dict[new_key1] = v
+                            new_key2 = f'cross_attention.layers.{layer_idx}.stream1.cross_attn.layer_norm.{param}'
+                            pretrained_dict[new_key2] = v
+                            new_key3 = f'cross_attention.layers.{layer_idx}.stream2.self_attn.layer_norm.{param}'
+                            pretrained_dict[new_key3] = v
+                            new_key4 = f'cross_attention.layers.{layer_idx}.stream2.cross_attn.layer_norm.{param}'
+                            pretrained_dict[new_key4] = v
+
+                        # 3. Ánh xạ các trọng số Feed Forward (w_1.weight, w_1.bias, ...)
+                        elif sub_module == 'pos_ffn':
+                            new_key1 = f'cross_attention.layers.{layer_idx}.stream1.feed_forward.{param}'
+                            pretrained_dict[new_key1] = v
+                            new_key2 = f'cross_attention.layers.{layer_idx}.stream2.feed_forward.{param}'
+                            pretrained_dict[new_key2] = v
+
+                        # 4. Ánh xạ các tham số Layer Normalization cho Feed Forward (a_2, b_2)
+                        elif sub_module == 'pos_ffn.layer_norm':
+                            new_key1 = f'cross_attention.layers.{layer_idx}.stream1.feed_forward.layer_norm.{param}'
+                            pretrained_dict[new_key1] = v
+                            new_key2 = f'cross_attention.layers.{layer_idx}.stream2.feed_forward.layer_norm.{param}'
+                            pretrained_dict[new_key2] = v
+
+                    # Ánh xạ trọng số position_encoding nếu cần
+                    elif k.startswith('self_attention_decoder.position_encoding.enc.weight'):
+                        pretrained_dict['cross_attention.position_encoding.enc.weight'] = v
 
                 new_state_dict.update(pretrained_dict)
                 model.load_state_dict(new_state_dict, strict=False)

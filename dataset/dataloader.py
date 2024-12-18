@@ -17,9 +17,8 @@ def vtn_gcn_collate_fn_(batch):
 def crossVTN_collate_fn_(batch):
     heatmap = torch.stack([s[0] for s in batch], dim=0)
     clip = torch.stack([s[1] for s in batch],dim = 0)
-    poseflow = torch.stack([s[2] for s in batch],dim = 0)
     labels = torch.stack([s[3] for s in batch], dim=0)
-    return {'heatmap':heatmap,'clip':clip,'poseflow':poseflow},labels
+    return {'heatmap':heatmap,'clip':clip},labels
 
 def vtn_hc_pf_three_view_collate_fn_(batch):
     center_video = torch.stack([s[0] for s in batch],dim = 0)
@@ -51,6 +50,21 @@ def vtn_3_gcn_collate_fn_(batch):
     return {'left':left_video,'center':center_video,'right':right_video,'center_pf':center_pf,'left_pf':left_pf,'right_pf':right_pf,
             'center_kp':center_kp,'left_kp':left_kp,'right_kp':right_kp},labels
 
+
+def crossViewVTN_collate_fn_(batch):
+    rgb_left = torch.stack([s[0] for s in batch], dim=0)
+    hmap_left = torch.stack([s[3] for s in batch], dim=0)
+
+    rgb_center = torch.stack([s[1] for s in batch], dim=0)
+    hmap_center = torch.stack([s[4] for s in batch], dim=0)
+
+    rgb_right = torch.stack([s[2] for s in batch], dim=0)
+    hmap_right = torch.stack([s[5] for s in batch], dim=0)
+
+    labels = torch.stack([s[6] for s in batch], dim=0)
+
+    return {'rgb_left': rgb_left, 'rgb_center': rgb_center, 'rgb_right': rgb_right,
+            'hmap_left': hmap_left, 'hmap_center': hmap_center, 'hmap_right': hmap_right}, labels
 def distilation_collate_fn_(batch):
     center_video = torch.stack([s[0] for s in batch],dim = 0)
     left_video = torch.stack([s[2] for s in batch],dim = 0)
