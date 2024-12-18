@@ -195,7 +195,7 @@ def process_video(video_path, save_dir, holistic):
         # Generate heatmap
         hmap = gen_gaussian_hmap_op(
             coords_tensor, raw_size=(img_h, img_w), map_size=None,
-            sigma=10, confidence=True, threshold=0.5)
+            sigma=4, confidence=True, threshold=0.5)
 
         # Sum heatmaps over keypoints
         heatmap = hmap.sum(dim=1)[0]  # Shape: [H, W]
@@ -205,14 +205,12 @@ def process_video(video_path, save_dir, holistic):
         heatmap_np = (heatmap_np / np.max(heatmap_np) * 255).astype(np.uint8)
 
         # Apply colormap
-        heatmap_color = cv2.applyColorMap(heatmap_np, cv2.COLORMAP_JET)
-
-        # Overlay heatmap on frame
-        overlay = cv2.addWeighted(frame, 0.5, heatmap_color, 0.5, 0)
+        heatmap_gray = cv2.cvtColor(heatmap_np, cv2.COLOR_GRAY2BGR)
+        # overlay = cv2.addWeighted(frame, 0.5, heatmap_gray, 0.5, 0)
 
         # Save the frame with heatmap overlay
         output_file = os.path.join(save_dir, f"heatmap_{frame_idx:05d}.jpg")
-        cv2.imwrite(output_file, overlay)
+        cv2.imwrite(output_file, heatmap_gray)
 
         frame_idx += 1
 

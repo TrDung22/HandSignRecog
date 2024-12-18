@@ -387,7 +387,7 @@ class VTN_GCN_Dataset(Dataset):
         return len(self.train_labels)
 
 
-class VTN_RGBheat_Dataset(Dataset):
+class CrossVTN_Dataset(Dataset):
     def __init__(self, base_url, split, dataset_cfg, train_labels=None, **kwargs):
         if train_labels is None:
             if dataset_cfg['dataset_name'] == "VN_SIGN":

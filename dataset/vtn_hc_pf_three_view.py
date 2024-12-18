@@ -442,10 +442,8 @@ class VTN3GCNData(Dataset):
         center, left, right, label = self.train_labels.iloc[idx].values
         center_video, center_pf, center_kp, left_video, left_pf, left_kp, right_video, right_pf, right_kp = self.read_videos(center, left, right)
 
-        # Chọn một số ngẫu nhiên từ 1 đến 1000
         random_number = np.random.randint(1, 1001)
 
-        # Kiểm tra điều kiện với missing_rate
         if not (random_number / 1000 > self.data_cfg.get('center_missing_rates', 0)):
             center_video[:] = 0
             center_pf[:] = 0
