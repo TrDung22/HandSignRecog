@@ -1,187 +1,82 @@
 import cv2
 import numpy as np
-import mediapipe as mp
-from mediapipe.framework.formats import landmark_pb2
 import os
-from collections import defaultdict
 import torch
 import glob
+import re
 
-# Define hand and pose landmarks as per your specification
-hand_landmarks = [
-    'INDEX_FINGER_DIP', 'INDEX_FINGER_MCP', 'INDEX_FINGER_PIP', 'INDEX_FINGER_TIP',
-    'MIDDLE_FINGER_DIP', 'MIDDLE_FINGER_MCP', 'MIDDLE_FINGER_PIP', 'MIDDLE_FINGER_TIP',
-    'PINKY_DIP', 'PINKY_MCP', 'PINKY_PIP', 'PINKY_TIP',
-    'RING_FINGER_DIP', 'RING_FINGER_MCP', 'RING_FINGER_PIP', 'RING_FINGER_TIP',
-    'THUMB_CMC', 'THUMB_IP', 'THUMB_MCP', 'THUMB_TIP', 'WRIST'
-]
-
-HAND_IDENTIFIERS = [id + "_right" for id in hand_landmarks] + [id + "_left" for id in hand_landmarks]
-POSE_IDENTIFIERS = ["RIGHT_SHOULDER", "LEFT_SHOULDER", "LEFT_ELBOW", "RIGHT_ELBOW"]
-body_identifiers = HAND_IDENTIFIERS + POSE_IDENTIFIERS  # Total of 46 keypoints
-
-mp_holistic = mp.solutions.holistic
-mp_drawing = mp.solutions.drawing_utils
-
-# Function to find the index of the first non-zero element
-def find_index(array):
-    for i, num in enumerate(array):
-        if num != 0:
-            return i
-    return -1  # Return -1 if no non-zero element is found
-
-# Function to fill in missing keypoints
-def curl_skeleton(array):
-    array = list(array)
-    if sum(array) == 0:
-        return array
-    for i, location in enumerate(array):
-        if location != 0:
-            continue
-        else:
-            if i == 0 or i == len(array) - 1:
-                continue
-            else:
-                if array[i + 1] != 0:
-                    array[i] = float((array[i - 1] + array[i + 1]) / 2)
-                else:
-                    j = find_index(array[i + 1:])
-                    if j == -1:
-                        continue
-                    array[i] = float(((1 + j) * array[i - 1] + array[i + 1 + j]) / (2 + j))
-    return array
-
-def gen_gaussian_hmap_op(coords, raw_size=(260,210), map_size=None, sigma=1, confidence=False, threshold=0, **kwargs):
-    # openpose version
-    # pose [T,18,3]; face [T,70,3]; hand_0(left) [T,21,3]; hand_1(right) [T,21,3]
-    # gamma: hyper-param, control the width of gaussian, larger gamma, SMALLER gaussian
-    # flags: use pose or face or hands or some of them
-
-    #coords T, C, 3
-
+def gen_gaussian_hmap_op(coords, raw_size=(260, 210), map_size=None, sigma=1, confidence=False, threshold=0, **kwargs):
+    # Existing implementation of the heatmap generation function
     T, hmap_num = coords.shape[:2]
-    raw_h, raw_w = raw_size #260,210
-    if map_size==None:
+    raw_h, raw_w = raw_size
+    if map_size == None:
         map_h, map_w = raw_h, raw_w
         factor_h, factor_w = 1, 1
     else:
         map_h, map_w = map_size
-        factor_h, factor_w = map_h/raw_h, map_w/raw_w
+        factor_h, factor_w = map_h / raw_h, map_w / raw_w
     # generate 2d coords
-    # NOTE: openpose generate opencv-style coordinates!
-    coords_y =  coords[..., 1]*factor_h
-    coords_x = coords[..., 0]*factor_w
-    confs = coords[..., 2] #T, C
+    coords_y = coords[..., 1] * factor_h
+    coords_x = coords[..., 0] * factor_w
+    confs = coords[..., 2]  # T, C
 
-    y, x = torch.meshgrid(torch.arange(map_h), torch.arange(map_w))
+    y, x = torch.meshgrid(torch.arange(map_h), torch.arange(map_w), indexing='ij')
     coords = torch.stack([coords_y, coords_x], dim=0)
-    grid = torch.stack([y,x], dim=0).to(coords.device)  #[2,H,W]
-    grid = grid.unsqueeze(0).unsqueeze(0).expand(hmap_num,T,-1,-1,-1)  #[C,T,2,H,W]
-    coords = coords.unsqueeze(0).unsqueeze(0).expand(map_h, map_w,-1,-1,-1).permute(4,3,2,0,1)  #[C,T,2,H,W]
-    hmap = torch.exp(-((grid-coords)**2).sum(dim=2) / (2*sigma**2))  #[C,T,H,W]
-    hmap = hmap.permute(1,0,2,3)  #[T,C,H,W]
+    grid = torch.stack([y, x], dim=0).to(coords.device)  # [2,H,W]
+    grid = grid.unsqueeze(0).unsqueeze(0).expand(hmap_num, T, -1, -1, -1)  # [C,T,2,H,W]
+    coords = coords.unsqueeze(0).unsqueeze(0).expand(map_h, map_w, -1, -1, -1).permute(4, 3, 2, 0, 1)  # [C,T,2,H,W]
+    hmap = torch.exp(-((grid - coords) ** 2).sum(dim=2) / (2 * sigma ** 2))  # [C,T,H,W]
+    hmap = hmap.permute(1, 0, 2, 3)  # [T,C,H,W]
     if confidence:
-        confs = confs.unsqueeze(-1).unsqueeze(-1) #T,C,1,1
-        confs = torch.where(confs>threshold, confs, torch.zeros_like(confs))
-        hmap = hmap*confs
+        confs = confs.unsqueeze(-1).unsqueeze(-1)  # T,C,1,1
+        confs = torch.where(confs > threshold, confs, torch.zeros_like(confs))
+        hmap = hmap * confs
 
     return hmap
 
-def process_video(video_path, save_dir, holistic):
+
+def get_frame_number(filename):
+    # Extract the frame number from the filename
+    match = re.search(r'hand_kp_(\d+)\.npy', filename)
+    if match:
+        return int(match.group(1))
+    else:
+        return -1  # Assign -1 if no frame number is found
+
+
+def process_video_with_keypoints(video_path, keypoint_files, save_dir):
     cap = cv2.VideoCapture(video_path)
 
-    # Prepare a dictionary to store keypoints and confidences
-    keypoint_data = defaultdict(list)
-    confidence_data = defaultdict(list)
-    frame_count = 0
+    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    if len(keypoint_files) != total_frames:
+        print(
+            f"Warning: Number of keypoint files ({len(keypoint_files)}) does not match number of video frames ({total_frames}) for video '{os.path.basename(video_path)}'.")
+
+    frame_idx = 0
+    os.makedirs(save_dir, exist_ok=True)
 
     while True:
         ret, frame = cap.read()
         if not ret:
             break
-        frame_count += 1
+        frame = cv2.resize(frame, (256, 256))
 
-        image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        results = holistic.process(image)
+        if frame_idx < len(keypoint_files):
+            keypoint_file = keypoint_files[frame_idx]
+            data = np.load(keypoint_file)  # Data is a NumPy array of shape (46, 2)
 
-        # Process right hand
-        if results.right_hand_landmarks:
-            # Since individual landmark confidences are not available, use hand detection confidence
-            default_hand_confidence = 1.0  # You can adjust this value based on your needs
-            for idx, landmark in enumerate(results.right_hand_landmarks.landmark):
-                keypoint_data[f"{hand_landmarks[idx]}_right_x"].append(landmark.x)
-                keypoint_data[f"{hand_landmarks[idx]}_right_y"].append(landmark.y)
-                confidence_data[f"{hand_landmarks[idx]}_right"].append(default_hand_confidence)
+            # Check that data shape is correct
+            if data.shape != (46, 2):
+                print(f"Unexpected data shape in {keypoint_file}: {data.shape}. Skipping this frame.")
+                frame_idx += 1
+                continue
+
+            keypoints = data  # Shape: (46, 2)
+            confidences = np.ones(46)  # Set default confidence to 1.0 for all keypoints
         else:
-            for idx in range(len(hand_landmarks)):
-                keypoint_data[f"{hand_landmarks[idx]}_right_x"].append(0)
-                keypoint_data[f"{hand_landmarks[idx]}_right_y"].append(0)
-                confidence_data[f"{hand_landmarks[idx]}_right"].append(0)
-
-        # Process left hand
-        if results.left_hand_landmarks:
-            default_hand_confidence = 1.0
-            for idx, landmark in enumerate(results.left_hand_landmarks.landmark):
-                keypoint_data[f"{hand_landmarks[idx]}_left_x"].append(landmark.x)
-                keypoint_data[f"{hand_landmarks[idx]}_left_y"].append(landmark.y)
-                confidence_data[f"{hand_landmarks[idx]}_left"].append(default_hand_confidence)
-        else:
-            for idx in range(len(hand_landmarks)):
-                keypoint_data[f"{hand_landmarks[idx]}_left_x"].append(0)
-                keypoint_data[f"{hand_landmarks[idx]}_left_y"].append(0)
-                confidence_data[f"{hand_landmarks[idx]}_left"].append(0)
-
-        # Process pose landmarks (shoulders and elbows)
-        if results.pose_landmarks:
-            for pose_identifier in POSE_IDENTIFIERS:
-                idx_pose = getattr(mp_holistic.PoseLandmark, pose_identifier).value
-                landmark = results.pose_landmarks.landmark[idx_pose]
-                keypoint_data[f"{pose_identifier}_x"].append(landmark.x)
-                keypoint_data[f"{pose_identifier}_y"].append(landmark.y)
-                confidence_data[f"{pose_identifier}"].append(landmark.visibility)
-        else:
-            for pose_identifier in POSE_IDENTIFIERS:
-                keypoint_data[f"{pose_identifier}_x"].append(0)
-                keypoint_data[f"{pose_identifier}_y"].append(0)
-                confidence_data[f"{pose_identifier}"].append(0)
-
-    # Process the keypoints and confidences
-    T = frame_count  # Number of frames processed
-    num_keypoints = len(body_identifiers)
-    keypoints_all_frames = np.empty((T, num_keypoints, 2))
-    confidences_all_frames = np.empty((T, num_keypoints))
-
-    for index, identifier in enumerate(body_identifiers):
-        x_key = identifier + "_x"
-        y_key = identifier + "_y"
-        conf_key = identifier  # Confidence keys do not have '_x' or '_y'
-
-        x_array = keypoint_data.get(x_key, [0] * T)
-        y_array = keypoint_data.get(y_key, [0] * T)
-        conf_array = confidence_data.get(conf_key, [0] * T)
-
-        data_keypoint_preprocess_x = curl_skeleton(x_array)
-        data_keypoint_preprocess_y = curl_skeleton(y_array)
-        data_confidence_preprocess = curl_skeleton(conf_array)
-
-        keypoints_all_frames[:, index, 0] = np.asarray(data_keypoint_preprocess_x)
-        keypoints_all_frames[:, index, 1] = np.asarray(data_keypoint_preprocess_y)
-        confidences_all_frames[:, index] = np.asarray(data_confidence_preprocess)
-
-    cap.release()
-
-    # Re-open the video to read frames again
-    cap = cv2.VideoCapture(video_path)
-    frame_idx = 0
-
-    os.makedirs(save_dir, exist_ok=True)
-    while frame_idx < T:
-        ret, frame = cap.read()
-        if not ret:
-            break
-
-        keypoints = keypoints_all_frames[frame_idx]
-        confidences = confidences_all_frames[frame_idx]
+            print(f"No keypoint data for frame {frame_idx}. Skipping.")
+            frame_idx += 1
+            continue
 
         # Convert normalized coordinates to image coordinates
         img_h, img_w = frame.shape[:2]
@@ -189,7 +84,7 @@ def process_video(video_path, save_dir, holistic):
         y_coords = keypoints[:, 1] * img_h
 
         # Prepare coords tensor for gen_gaussian_hmap_op
-        coords = np.stack([x_coords, y_coords, confidences], axis=-1)[np.newaxis, :, :]  # Shape: (1, num_keypoints, 3)
+        coords = np.stack([x_coords, y_coords, confidences], axis=-1)[np.newaxis, :, :]  # Shape: (1, 46, 3)
         coords_tensor = torch.from_numpy(coords).float()
 
         # Generate heatmap
@@ -200,56 +95,69 @@ def process_video(video_path, save_dir, holistic):
         # Sum heatmaps over keypoints
         heatmap = hmap.sum(dim=1)[0]  # Shape: [H, W]
 
-        # Normalize heatmap to 0-255
+        # Normalize heatmap to 0-255 (grayscale)
         heatmap_np = heatmap.cpu().numpy()
-        heatmap_np = (heatmap_np / np.max(heatmap_np) * 255).astype(np.uint8)
+        if np.max(heatmap_np) > 0:
+            heatmap_np = (heatmap_np / np.max(heatmap_np) * 255).astype(np.uint8)
+        else:
+            heatmap_np = (heatmap_np * 255).astype(np.uint8)
 
-        # Apply colormap
-        heatmap_gray = cv2.cvtColor(heatmap_np, cv2.COLOR_GRAY2BGR)
-        # overlay = cv2.addWeighted(frame, 0.5, heatmap_gray, 0.5, 0)
-
-        # Save the frame with heatmap overlay
+        # Lưu trực tiếp dạng grayscale
         output_file = os.path.join(save_dir, f"heatmap_{frame_idx:05d}.jpg")
-        cv2.imwrite(output_file, heatmap_gray)
+        cv2.imwrite(output_file, heatmap_np)
 
         frame_idx += 1
 
     cap.release()
 
-def process_videos_in_folder(input_folder, output_folder):
-    # Get all video files in the input folder
-    video_extensions = ('*.mp4',)  # Add more extensions if needed
-    video_files = []
-    for ext in video_extensions:
-        video_files.extend(glob.glob(os.path.join(input_folder, ext)))
+
+
+def process_videos_with_keypoints(videos_folder, keypoints_folder, output_folder):
+    # Get all video files in the videos folder
+    video_files = glob.glob(os.path.join(videos_folder, '*.mp4'))
 
     if not video_files:
-        print(f"No video files found in {input_folder}")
+        print(f"No video files found in {videos_folder}")
         return
 
-    # Initialize holistic instance outside the loop
-    with mp_holistic.Holistic(
-        min_detection_confidence=0.5, min_tracking_confidence=0.5) as holistic:
+    for video_file in video_files:
+        # Get the base name of the video without extension
+        video_name = os.path.splitext(os.path.basename(video_file))[0]
 
-        for video_path in video_files:
-            # Get the video filename without extension
-            video_filename = os.path.basename(video_path)
-            video_name = os.path.splitext(video_filename)[0]
+        # Construct the path to the keypoints subfolder
+        keypoints_subfolder = os.path.join(keypoints_folder, video_name)
 
-            # Create a subdirectory in the output folder with the video name
-            save_directory = os.path.join(output_folder, video_name)
-            if os.path.exists(save_directory):
-                print(f"Thư mục đầu ra cho video '{video_filename}' đã tồn tại. Bỏ qua việc xử lý.")
-                continue  # Bỏ qua video này và tiếp tục với video tiếp theo
+        # Check if the keypoints subfolder exists
+        if not os.path.isdir(keypoints_subfolder):
+            print(f"Keypoints folder '{keypoints_subfolder}' does not exist for video '{video_name}'. Skipping.")
+            continue
 
-            os.makedirs(save_directory, exist_ok=True)
+        # Find all .npy files in the keypoints subfolder
+        keypoint_pattern = os.path.join(keypoints_subfolder, 'hand_kp_*.npy')
+        keypoint_files = glob.glob(keypoint_pattern)
 
-            print(f"Processing video: {video_filename}")
-            process_video(video_path, save_directory, holistic)
-            print(f"Finished processing {video_filename}")
+        # Sort the keypoint files numerically based on frame number
+        keypoint_files.sort(key=lambda f: get_frame_number(f))
+
+        if not keypoint_files:
+            print(f"No keypoint files found in '{keypoints_subfolder}'. Skipping.")
+            continue
+
+        # Create the output directory for this video
+        save_directory = os.path.join(output_folder, video_name)
+        if os.path.exists(save_directory):
+            print(f"Output directory for video '{video_name}' already exists. Skipping processing.")
+            continue
+
+        os.makedirs(save_directory, exist_ok=True)
+
+        print(f"Processing video: {video_name}")
+        process_video_with_keypoints(video_file, keypoint_files, save_directory)
+        print(f"Finished processing {video_name}")
 
 if __name__ == "__main__":
-    input_folder = "/home/trdung/Documents/VSLRecog/HandSignRecog/vsl/videos"  # Replace with your input folder path
-    output_folder = "/home/trdung/Documents/VSLRecog/HandSignRecog/vsl/heatmap"  # Replace with your output folder path
-    process_videos_in_folder(input_folder, output_folder)
+    videos_folder = "/media/ibmelab/ibme21/GG/VSLRecognition/vsl/videos"  # Replace with the path to your videos folder
+    keypoints_folder = "/media/ibmelab/ibme21/GG/VSLRecognition/vsl/hand_keypoints"  # Replace with the path to your .npy keypoints folder
+    output_folder = "/media/ibmelab/ibme21/GG/VSLRecognition/vsl/heatmap"  # Replace with the path to your output folder
+    process_videos_with_keypoints(videos_folder, keypoints_folder, output_folder)
     print("All videos have been processed.")
